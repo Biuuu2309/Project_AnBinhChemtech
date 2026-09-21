@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project — runtime data & generated quotes
+backend/data/*.db
+backend/data/*.db-journal
+worker/output/*
+!worker/output/.gitkeep
+frontend/node_modules/
+frontend/dist/
+.DS_Store
