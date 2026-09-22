@@ -1,1 +1,4 @@
-# Place quote_template.docx here (created in a later step).
+# Quotation templates
+
+- `quotation_template.docx` — mẫu deterministic (placeholder `{{field}}`)
+- Tạo lại: `python jobs/create_template.py`

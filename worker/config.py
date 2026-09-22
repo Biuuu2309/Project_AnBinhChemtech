@@ -2,8 +2,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-PROJECT_ROOT = BACKEND_DIR.parent
+WORKER_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = WORKER_DIR.parent
 
 
 class Settings(BaseSettings):
@@ -13,11 +13,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "An Binh Chemtech Quote API"
-    secret_key: str = "change-me"
-    database_url: str = f"sqlite:///{(BACKEND_DIR / 'data' / 'app.db').as_posix()}"
+    backend_url: str = "http://127.0.0.1:8000"
     worker_poll_interval: int = 3
-    cors_origins: str = "http://localhost:5173"
+    use_codex_cli: bool = False
+    template_path: str = str(WORKER_DIR / "templates" / "quotation_template.docx")
+    output_dir: str = str(WORKER_DIR / "output")
 
 
 settings = Settings()
