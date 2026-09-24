@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     backend_url: str = "http://127.0.0.1:8000"
     worker_poll_interval: int = 3
     use_codex_cli: bool = False
+    ai_note_enabled: bool = True
+    ai_fail_job_on_error: bool = False
     template_path: str = str(WORKER_DIR / "templates" / "quotation_template.docx")
     output_dir: str = str(WORKER_DIR / "output")
 

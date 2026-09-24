@@ -19,6 +19,7 @@ def _to_out(quotation: Quotation) -> QuotationOut:
         note=quotation.note,
         output_path=quotation.output_path,
         error_message=quotation.error_message,
+        attempt_count=quotation.attempt_count or 0,
         created_at=quotation.created_at,
         updated_at=quotation.updated_at,
         items=quotation.items,
@@ -37,7 +38,7 @@ def next_job(db: Session = Depends(get_db)):
 def complete_job(quotation_id: str, payload: JobCompleteIn, db: Session = Depends(get_db)):
     try:
         quotation = quotation_service.complete_job(db, quotation_id, payload.output_path)
-    except ValueError as exc:
+    except (ValueError, FileNotFoundError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _to_out(quotation)
 

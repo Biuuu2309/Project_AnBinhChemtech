@@ -1,4 +1,4 @@
-"""Mock Mac Mini worker — polls backend for pending quote jobs."""
+"""Mock Mac Mini automation worker — polls backend for pending quote jobs."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 
 import httpx
 
+from ai.service import apply_note_only, assert_protected_fields_unchanged, normalize_quotation_note
 from config import settings
 from jobs.create_template import create_quotation_template
 from jobs.template_service import build_field_mapping, fill_template
@@ -29,21 +30,46 @@ def _process_job(client: httpx.Client, job: dict) -> None:
     customer_resp.raise_for_status()
     customer = customer_resp.json()
 
-    if settings.use_codex_cli:
-        logger.warning("USE_CODEX_CLI=true but Codex is stubbed; using deterministic fill")
+    # Optional AI step — returns a note string only; commercial fields stay on `job`
+    normalized_note, ai_meta = normalize_quotation_note(job.get("note"))
+    if ai_meta is not None:
+        logger.info(
+            "quotation_id=%s attempt_no=%s ai_note source=%s tags=%s event=ai_normalize",
+            quotation_id,
+            job.get("attempt_count"),
+            ai_meta.source,
+            list(ai_meta.tags),
+        )
 
-    mapping = build_field_mapping(job, customer)
+    job_for_doc = apply_note_only(job, normalized_note)
+    assert_protected_fields_unchanged(job, job_for_doc)
+
+    # Deterministic pipeline (mapping reads qty/price/terms from original job fields)
+    mapping = build_field_mapping(job_for_doc, customer)
     output_path = Path(settings.output_dir) / f"{quotation_id}.docx"
 
-    fill_template(Path(settings.template_path), output_path, mapping)
-    validate_quotation_file(output_path)
+    try:
+        fill_template(Path(settings.template_path), output_path, mapping)
+        validate_quotation_file(output_path)
+    except Exception as exc:
+        logger.error(
+            "quotation_id=%s event=template_or_validate_failed error=%s",
+            quotation_id,
+            str(exc)[:200],
+        )
+        raise
 
     complete = client.post(
         f"/api/internal/jobs/{quotation_id}/complete",
         json={"output_path": str(output_path.resolve())},
     )
     complete.raise_for_status()
-    logger.info("Completed %s -> %s", quotation_id, output_path)
+    logger.info(
+        "quotation_id=%s attempt_no=%s event=completed file=%s",
+        quotation_id,
+        job.get("attempt_count"),
+        output_path.name,
+    )
 
 
 def _fail_job(client: httpx.Client, quotation_id: str, error: str) -> None:
@@ -81,10 +107,10 @@ def run(once: bool = False) -> None:
 
     Path(settings.output_dir).mkdir(parents=True, exist_ok=True)
     logger.info(
-        "Worker ready (Mock Mac Mini). backend=%s template=%s output=%s",
+        "Worker ready (automation mock). backend=%s use_codex_cli=%s ai_note_enabled=%s",
         settings.backend_url,
-        settings.template_path,
-        settings.output_dir,
+        settings.use_codex_cli,
+        settings.ai_note_enabled,
     )
 
     with httpx.Client(base_url=settings.backend_url, timeout=30.0) as client:
@@ -103,7 +129,7 @@ def run(once: bool = False) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Mock Mac Mini quotation worker")
+    parser = argparse.ArgumentParser(description="Automation worker (Mock Mac mini agent)")
     parser.add_argument("--once", action="store_true", help="Process at most one job then exit")
     args = parser.parse_args()
     run(once=args.once)

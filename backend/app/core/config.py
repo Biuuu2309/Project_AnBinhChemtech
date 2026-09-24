@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{(BACKEND_DIR / 'data' / 'app.db').as_posix()}"
     worker_poll_interval: int = 3
     cors_origins: str = "http://localhost:5173"
+    # Download/complete may only reference files under this dir (default: worker/output)
+    quotation_output_dir: str = str((PROJECT_ROOT / "worker" / "output").as_posix())
 
 
 settings = Settings()

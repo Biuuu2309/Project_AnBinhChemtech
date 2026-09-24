@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client'
+import type { Customer } from '../types/quotation'
+import { createIdempotencyKey } from '../utils/idempotency'
 
 type ItemForm = {
   product_name: string
@@ -20,6 +22,10 @@ const emptyItem = (): ItemForm => ({
 export function QuotationFormPage() {
   const { customerId } = useParams()
   const navigate = useNavigate()
+  const idempotencyKeyRef = useRef(createIdempotencyKey())
+
+  const [customer, setCustomer] = useState<Customer | null>(null)
+  const [loadingCustomer, setLoadingCustomer] = useState(true)
   const [items, setItems] = useState<ItemForm[]>([emptyItem()])
   const [paymentTerms, setPaymentTerms] = useState('30 days')
   const [deliveryTerms, setDeliveryTerms] = useState('Within 7 days')
@@ -27,28 +33,41 @@ export function QuotationFormPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  useEffect(() => {
+    if (!customerId) return
+    setLoadingCustomer(true)
+    api
+      .getCustomer(customerId)
+      .then(setCustomer)
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoadingCustomer(false))
+  }, [customerId])
+
   function updateItem(index: number, field: keyof ItemForm, value: string) {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)))
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!customerId) return
+    if (!customerId || !customer?.is_active) return
     setError(null)
     setSubmitting(true)
     try {
-      const quotation = await api.createQuotation({
-        customer_id: customerId,
-        payment_terms: paymentTerms,
-        delivery_terms: deliveryTerms,
-        note: note || undefined,
-        items: items.map((item) => ({
-          product_name: item.product_name.trim(),
-          specification: item.specification.trim(),
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unit_price),
-        })),
-      })
+      const quotation = await api.createQuotation(
+        {
+          customer_id: customerId,
+          payment_terms: paymentTerms,
+          delivery_terms: deliveryTerms,
+          note: note || undefined,
+          items: items.map((item) => ({
+            product_name: item.product_name.trim(),
+            specification: item.specification.trim(),
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unit_price),
+          })),
+        },
+        idempotencyKeyRef.current,
+      )
       navigate(`/quotations/${quotation.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submit failed')
@@ -57,13 +76,34 @@ export function QuotationFormPage() {
     }
   }
 
+  if (loadingCustomer) return <p className="text-slate-500">Đang tải khách hàng...</p>
+  if (error && !customer) return <p className="text-red-600">Lỗi: {error}</p>
+  if (!customer) return <p className="text-slate-500">Không tìm thấy khách hàng.</p>
+
+  if (!customer.is_active) {
+    return (
+      <section>
+        <Link to={`/customers/${customerId}`} className="text-sm text-teal-700 hover:underline">
+          ← Chi tiết khách hàng
+        </Link>
+        <h1 className="mt-3 text-2xl font-semibold">Không thể tạo báo giá</h1>
+        <p className="mt-2 text-sm text-red-600">
+          Khách hàng <strong>{customer.company}</strong> đang inactive. Hãy dùng khách hàng đang
+          active.
+        </p>
+      </section>
+    )
+  }
+
   return (
     <section>
       <Link to={`/customers/${customerId}`} className="text-sm text-teal-700 hover:underline">
         ← Chi tiết khách hàng
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold text-slate-900">Form báo giá</h1>
-      <p className="mt-1 text-sm text-slate-600">Khách hàng: {customerId}</p>
+      <h1 className="mt-3 text-2xl font-semibold text-slate-900">Tạo báo giá</h1>
+      <p className="mt-1 text-sm text-slate-600">
+        {customer.company} · {customer.id}
+      </p>
 
       <form onSubmit={onSubmit} className="mt-6 space-y-6 rounded-lg border border-slate-200 bg-white p-4">
         {items.map((item, index) => (
@@ -76,6 +116,7 @@ export function QuotationFormPage() {
                 value={item.product_name}
                 onChange={(e) => updateItem(index, 'product_name', e.target.value)}
                 required
+                disabled={submitting}
               />
             </label>
             <label className="text-sm">
@@ -85,6 +126,7 @@ export function QuotationFormPage() {
                 value={item.specification}
                 onChange={(e) => updateItem(index, 'specification', e.target.value)}
                 required
+                disabled={submitting}
               />
             </label>
             <label className="text-sm">
@@ -97,6 +139,7 @@ export function QuotationFormPage() {
                 value={item.quantity}
                 onChange={(e) => updateItem(index, 'quantity', e.target.value)}
                 required
+                disabled={submitting}
               />
             </label>
             <label className="text-sm">
@@ -109,6 +152,7 @@ export function QuotationFormPage() {
                 value={item.unit_price}
                 onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
                 required
+                disabled={submitting}
               />
             </label>
           </fieldset>
@@ -116,7 +160,8 @@ export function QuotationFormPage() {
 
         <button
           type="button"
-          className="text-sm text-teal-700 hover:underline"
+          className="text-sm text-teal-700 hover:underline disabled:opacity-50"
+          disabled={submitting}
           onClick={() => setItems((prev) => [...prev, emptyItem()])}
         >
           + Thêm dòng sản phẩm
@@ -130,6 +175,7 @@ export function QuotationFormPage() {
               value={paymentTerms}
               onChange={(e) => setPaymentTerms(e.target.value)}
               required
+              disabled={submitting}
             />
           </label>
           <label className="text-sm">
@@ -139,17 +185,20 @@ export function QuotationFormPage() {
               value={deliveryTerms}
               onChange={(e) => setDeliveryTerms(e.target.value)}
               required
+              disabled={submitting}
             />
           </label>
         </div>
 
         <label className="block text-sm">
-          Ghi chú
+          Ghi chú (tối đa 2000 ký tự — AI chỉ chuẩn hóa field này)
           <textarea
             className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5"
             rows={3}
+            maxLength={2000}
             value={note}
             onChange={(e) => setNote(e.target.value)}
+            disabled={submitting}
           />
         </label>
 
@@ -160,7 +209,7 @@ export function QuotationFormPage() {
           disabled={submitting}
           className="rounded bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-60"
         >
-          {submitting ? 'Đang gửi...' : 'Gửi'}
+          {submitting ? 'Đang gửi...' : 'Gửi báo giá'}
         </button>
       </form>
     </section>

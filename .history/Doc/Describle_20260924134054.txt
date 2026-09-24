@@ -1,0 +1,148 @@
+1. Bối cảnh bài toán
+An Bình Chemtech đang phát triển hệ thống quản lý nội bộ và từng bước ứng dụng AI,
+phần mềm và tự động hóa vào các quy trình vận hành. Một trong những nhu cầu cần giải
+quyết là giảm thao tác thủ công trong quá trình lập báo giá cho khách hàng, đồng thời bảo
+đảm dữ liệu được truyền nhận rõ ràng, có thể kiểm soát trạng thái và tạo ra file báo giá
+theo mẫu thống nhất của công ty.
+Trong bài đánh giá này, ứng viên được giao nhiệm vụ đề xuất và xây dựng một prototype
+cho quy trình tạo báo giá. Bài toán không yêu cầu xây dựng một hệ thống CRM hoàn chỉnh
+hoặc một sản phẩm đạt mức production. Điều An Bình Chemtech muốn đánh giá là khả
+năng hiểu yêu cầu, phân tách vấn đề, lựa chọn giải pháp kỹ thuật hợp lý và chứng minh
+giải pháp đó bằng một demo có thể hoạt động.
+
+2. Quy trình nghiệp vụ cần giải quyết
+Quy trình bắt đầu tại trang thông tin chi tiết của một khách hàng trên hệ thống quản lý nội
+bộ. Người dùng chọn chức năng “Tạo báo giá”, sau đó hệ thống hiển thị form để nhập các
+thông tin cần thiết cho báo giá, chẳng hạn sản phẩm, quy cách, số lượng, đơn giá, điều
+kiện thanh toán, điều kiện giao hàng và các nội dung liên quan.
+Sau khi người dùng kiểm tra thông tin và nhấn “Gửi”, dữ liệu khách hàng cùng dữ liệu báo
+giá phải được chuyển sang một Mac mini dùng cho tác vụ tự động hóa. Tại đây, Codex CLI
+nhận yêu cầu tạo báo giá và tham gia vào quá trình xử lý. Hệ thống sử dụng một file báo
+giá mẫu có sẵn, tạo bản làm việc phù hợp, điền dữ liệu vào đúng vị trí và cuối cùng xuất ra
+file báo giá hoàn chỉnh.
+
+Luồng mục tiêu: Hệ thống quản lý nội bộ → Tạo báo giá → Nhập dữ liệu → Gửi yêu cầu → Mac mini → Codex CLI / tác vụ xử lý → Mẫu báo giá → File báo giá hoàn chỉnh.
+
+Sơ đồ dưới đây là workflow nghiệp vụ do An Bình Chemtech cung cấp. Đây là tài liệu đầu
+vào của bài đánh giá và cần được sử dụng làm cơ sở để ứng viên phân tích, thiết kế giải
+pháp và xây dựng demo. Ứng viên có thể đề xuất điều chỉnh cách triển khai ở tầng kỹ
+thuật nếu nhận thấy có phương án an toàn, đơn giản hoặc đáng tin cậy hơn, nhưng cần
+nêu rõ lý do và ảnh hưởng của thay đổi.
+
+Workflow tham chiếu:
+Có 2 hệ thống: Hệ thống quản lý nội bộ và Hệ thống MAC mini
+
+Hệ thống quản lý nội bộ đi theo quy trình:
+- Trang thông tin chi tiết khách hàng
+- Nhấn nút "Tạo báo giá"
+- Hiển thị form báo giá
+- Nhập thông tin báo giá
+- Bấm "Gửi"
+
+Sau đó qua quá trình Gửi thông tin khách hàng và dữ liệu giá đã nhập
+
+Sau đó thông tin đến MAC mini
+
+- Từ mẫu file báo giá có sẵn -> Sử dụng làm mẫu 
+- Mẫu cùng với Codex CLI nhận yêu cầu tạo báo giá
+- Điền thông tin tương ứng vào bản sao của mẫu báo giá
+- Xuất file báo giá
+
+Output: File báo giá hoàn chỉnh
+
+3. Yêu cầu đối với phương án triển khai
+Trước khi hoặc trong quá trình xây dựng demo, ứng viên cần chuẩn bị một bản kế hoạch
+giải pháp. Tài liệu này không cần dài, nhưng phải đủ rõ để người đọc hiểu hệ thống được tổ
+chức như thế nào, các thành phần giao tiếp với nhau ra sao và vì sao ứng viên lựa chọn
+cách triển khai đó.
+Phương án cần làm rõ kiến trúc tổng thể từ web application đến Mac mini và quá trình tạo
+file. Ứng viên cần mô tả cách dữ liệu được gửi đi, cách Mac mini nhận một yêu cầu mới,
+cách một tác vụ được khởi chạy, cách kết quả được trả về hoặc lưu lại, và cách hệ thống
+biết một báo giá đang chờ xử lý, đang thực hiện, đã hoàn thành hay gặp lỗi.
+Ứng viên cũng cần trình bày vai trò thực sự của Codex CLI trong giải pháp. Không mặc
+định rằng mọi bước đều phải sử dụng AI. Chúng tôi muốn thấy ứng viên có khả năng phân
+biệt những công việc phù hợp với AI và những công việc nên được thực hiện bằng code xác
+định, có thể kiểm thử và tái lập. Nếu ứng viên cho rằng một phần trong workflow không
+cần Codex hoặc có phương án kỹ thuật phù hợp hơn, ứng viên có thể đề xuất và giải thích.
+Ở mức thiết kế, giải pháp cần cân nhắc những tình huống thường gặp trong vận hành thực
+tế: dữ liệu đầu vào không hợp lệ, người dùng gửi cùng một yêu cầu nhiều lần, Mac mini
+tạm thời mất kết nối, tiến trình tạo file thất bại giữa chừng, tác vụ cần retry hoặc file đầu
+ra không được tạo đúng. Ứng viên không bắt buộc phải triển khai đầy đủ tất cả cơ chế này
+trong prototype, nhưng cần cho thấy mình nhận diện được rủi ro và có hướng xử lý hợp lý.
+Các vấn đề cơ bản về authentication, authorization, validation, logging, bảo vệ dữ liệu
+khách hàng và quản lý quyền truy cập cũng cần được đề cập ở mức phù hợp với một hệ
+thống nội bộ. Chúng tôi không kỳ vọng một thiết kế enterprise phức tạp; ưu tiên giải pháp
+vừa đủ, dễ hiểu và có khả năng vận hành ổn định trong môi trường SME.
+
+4. Yêu cầu đối với prototype
+Prototype cần chứng minh được luồng chính của bài toán từ đầu đến cuối. Có thể sử dụng
+dữ liệu khách hàng, sản phẩm và giá hoàn toàn giả lập. Giao diện không phải tiêu chí trọng
+tâm, vì vậy ứng viên có thể giữ UI ở mức đơn giản, rõ ràng và dành thời gian cho workflow,
+data flow và phần xử lý.
+Tối thiểu, demo cần cho phép người dùng mở thông tin một khách hàng, chọn tạo báo giá,
+nhập các dữ liệu cần thiết, gửi yêu cầu xử lý và nhận được một file báo giá được tạo dựa
+trên template. File đầu ra có thể là DOCX, XLSX, PDF hoặc định dạng khác nếu ứng viên có
+lý do kỹ thuật phù hợp.
+Trong trường hợp ứng viên không có Mac mini hoặc không thể chạy Codex CLI trong môi
+trường của mình, phần này có thể được mock hoặc simulate. Nếu sử dụng mock, ứng viên
+cần ghi rõ phạm vi đang được giả lập và mô tả cách thành phần đó sẽ được thay thế bằng
+triển khai thực tế khi đưa hệ thống vào vận hành.
+
+5. Việc sử dụng AI trong bài đánh giá
+An Bình Chemtech - Tài liệu tuyển dụng Trang 4
+Ứng viên được phép và được khuyến khích sử dụng các công cụ AI-assisted development
+như Codex, Claude Code, ChatGPT, GitHub Copilot hoặc công cụ tương đương. Khả năng sử
+dụng AI hiệu quả là một phần liên quan trực tiếp đến vị trí tuyển dụng, vì vậy việc sử dụng
+AI không bị xem là điểm trừ.
+Tuy nhiên, ứng viên chịu trách nhiệm đối với giải pháp và source code mình nộp. Trong
+vòng trao đổi kỹ thuật, ứng viên cần có khả năng giải thích kiến trúc, data flow, các quyết
+định kỹ thuật quan trọng và những đoạn code chính. Ứng viên cũng có thể được yêu cầu
+debug, thay đổi một yêu cầu nhỏ hoặc mở rộng một phần của chính solution đã nộp. Mục
+đích là đánh giá khả năng sử dụng AI như một công cụ hỗ trợ engineering, thay vì chỉ đánh
+giá khả năng tạo ra code bằng AI.
+
+6. Nội dung cần gửi
+Bài nộp cần đủ thông tin để An Bình Chemtech có thể hiểu, chạy thử và trao đổi lại với ứng
+viên. Ứng viên vui lòng gửi Solution Plan kèm sơ đồ kiến trúc hoặc workflow; source code
+hoặc GitHub repository; README hướng dẫn setup và chạy project; demo dưới dạng link,
+video ngắn hoặc hướng dẫn chạy local; và ít nhất một file báo giá mẫu được tạo ra từ
+prototype.
+Trong README, vui lòng ghi rõ những phần đã hoàn thành, những phần đang mock hoặc
+chưa triển khai, các giả định được sử dụng, công cụ AI đã dùng và những thay đổi mà bạn
+sẽ thực hiện nếu solution được triển khai ở môi trường production. Nếu có phần chưa hoàn
+thành trong thời gian làm bài, hãy mô tả ngắn gọn hướng xử lý thay vì cố gắng mở rộng
+phạm vi quá mức.
+
+7. Thời gian và phạm vi
+Đây là bài đánh giá năng lực, không phải yêu cầu ứng viên xây dựng một sản phẩm hoàn
+chỉnh để đưa vào vận hành. An Bình Chemtech khuyến nghị ứng viên giới hạn thời gian
+thực hiện trong khoảng 2-4 giờ làm việc thực tế và tập trung vào những phần thể hiện tốt
+nhất tư duy kỹ thuật của mình.
+Thời hạn gửi bài: 25/09/2026.
+Hình thức gửi: Trả lời email tuyển dụng và đính kèm tài liệu/link liên quan.
+
+8. Cách chúng tôi đánh giá bài làm
+An Bình Chemtech không đánh giá bài làm dựa trên số lượng dòng code, số lượng
+framework được sử dụng hoặc mức độ phức tạp của kiến trúc. Một solution đơn giản, có lý
+do rõ ràng, chạy được và phù hợp với quy mô bài toán sẽ được đánh giá tích cực hơn một
+hệ thống phức tạp nhưng khó giải thích hoặc khó vận hành.
+Việc đánh giá tập trung vào khả năng hiểu yêu cầu nghiệp vụ; tư duy phân tích và thiết kế
+hệ thống; cách lựa chọn công nghệ; chất lượng của data flow và integration; khả năng xây
+dựng một prototype hoạt động; cách sử dụng AI hợp lý; nhận thức về reliability, security và
+error handling; cũng như khả năng giải thích và bảo vệ các quyết định kỹ thuật của chính
+An Bình Chemtech - Tài liệu tuyển dụng Trang 5
+ứng viên.
+Đối với ứng viên Fresher/Junior, chúng tôi không kỳ vọng kiến thức ở mức Senior Engineer.
+Điều quan trọng là nền tảng kỹ thuật đúng, tư duy logic, khả năng tự tìm hiểu, biết đặt câu
+hỏi khi yêu cầu chưa rõ và có thể chuyển một bài toán nghiệp vụ thành một giải pháp có
+cấu trúc.
+
+9. Tính minh bạch của bài đánh giá
+Bài test này được sử dụng cho mục đích đánh giá năng lực trong quá trình tuyển dụng.
+Ứng viên không cần sử dụng bất kỳ dữ liệu khách hàng, dữ liệu kinh doanh hoặc tài liệu
+nội bộ thực tế nào của An Bình Chemtech. Toàn bộ dữ liệu trong prototype có thể là dữ liệu
+giả lập.
+Bài làm không được xem là sản phẩm thương mại mà ứng viên phải bàn giao để công ty
+đưa trực tiếp vào sử dụng. Mục tiêu của bài đánh giá là tạo ra một bối cảnh đủ thực tế để
+hai bên có cơ sở trao đổi về tư duy, kỹ năng và cách làm việc trong vòng phỏng vấn kỹ
+thuật.
