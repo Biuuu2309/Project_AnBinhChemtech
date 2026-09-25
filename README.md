@@ -2,7 +2,20 @@
 
 Prototype end-to-end: **Internal Web UI → FastAPI → Automation Worker (Mock Mac mini) → optional AI note → DOCX**.
 
-Assessment deadline: **25/09/2026**. Requirements: `doc/Describle.txt`. Solution plan reflecting this implementation: [`docs/solution-plan.md`](docs/solution-plan.md). Diagrams: [`docs/architecture-diagrams.md`](docs/architecture-diagrams.md).
+Assessment deadline: **25/09/2026**.
+
+## Documentation
+
+Tất cả tài liệu nằm trong [`docs/`](docs/README.md):
+
+| File | Nội dung |
+|------|----------|
+| [Describle.txt](docs/Describle.txt) | Đề bài |
+| [solution-plan.md](docs/solution-plan.md) / [VI](docs/solution-plan-vi.md) | Solution plan as-built |
+| [architecture-diagrams.md](docs/architecture-diagrams.md) | Sơ đồ |
+| [tech-stack.md](docs/tech-stack.md) | Tech stack |
+| [roadmap.md](docs/roadmap.md) | Phase status |
+| [samples/](docs/samples/README.md) | DOCX mẫu |
 
 ---
 
@@ -103,10 +116,9 @@ Project_AnBinhChemtech/
 │   ├── codex/         # Codex CLI integration boundary
 │   ├── jobs/          # Template + validator
 │   └── output/        # Generated DOCX
-├── docs/              # Solution plan (as-built)
-├── doc/               # Assessment inputs, samples, roadmap
+├── docs/              # All docs: brief, solution plan, diagrams, samples
 ├── .env.example
-└── README.md
+└── README.md          # Runbook (this file)
 ```
 
 ---
@@ -292,4 +304,4 @@ If AI fails / Codex is unavailable → fallback keeps the original note (unless 
 
 ## Sample quotation file
 
-`doc/samples/QT-2026-SAMPLE.docx`
+`docs/samples/QT-2026-SAMPLE.docx` — see [`docs/samples/README.md`](docs/samples/README.md).

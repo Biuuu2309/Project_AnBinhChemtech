@@ -2,7 +2,13 @@
 
 This document describes the **implemented prototype**, not a future wishlist. Items that are mocked or out of scope are labeled explicitly.
 
-Related: assessment brief `doc/Describle.txt`, runbook `README.md`.
+| | |
+|-|-|
+| Vietnamese | [`solution-plan-vi.md`](solution-plan-vi.md) |
+| Diagrams | [`architecture-diagrams.md`](architecture-diagrams.md) |
+| Tech stack | [`tech-stack.md`](tech-stack.md) |
+| Runbook | [`../README.md`](../README.md) |
+| Assessment brief | [`Describle.txt`](Describle.txt) |
 
 ---
 

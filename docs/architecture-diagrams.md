@@ -1,6 +1,7 @@
 # Architecture & workflow diagrams
 
-Companion to [`solution-plan.md`](solution-plan.md). ASCII only — no extra tooling required.
+Companion to [`solution-plan.md`](solution-plan.md) / [`solution-plan-vi.md`](solution-plan-vi.md).  
+Index: [`README.md`](README.md). ASCII only — no extra tooling required.
 
 ## System context
 
