@@ -28,3 +28,5 @@ def ensure_schema(engine: Engine) -> None:
                     "ON quotations(idempotency_key)"
                 )
             )
+        if quote_cols and "vat_percent" not in quote_cols:
+            conn.execute(text("ALTER TABLE quotations ADD COLUMN vat_percent FLOAT"))

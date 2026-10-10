@@ -18,7 +18,9 @@ class Settings(BaseSettings):
     use_codex_cli: bool = False
     ai_note_enabled: bool = True
     ai_fail_job_on_error: bool = False
-    template_path: str = str(WORKER_DIR / "templates" / "quotation_template.docx")
+    template_path: str = str(
+        WORKER_DIR / "templates" / "01_Bao_Gia_An_Binh_Chemtech.V2.pptx"
+    )
     output_dir: str = str(WORKER_DIR / "output")
 
 

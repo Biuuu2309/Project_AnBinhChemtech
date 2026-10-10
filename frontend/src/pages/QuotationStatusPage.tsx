@@ -31,14 +31,16 @@ export function QuotationStatusPage() {
   const [history, setHistory] = useState<QuotationEvent[]>([])
   const [attempts, setAttempts] = useState<ProcessingAttempt[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loadedForId, setLoadedForId] = useState<string | null>(null)
   const [retrying, setRetrying] = useState(false)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [pollKey, setPollKey] = useState(0)
+  const loading = Boolean(quotationId) && loadedForId !== quotationId
 
   const [paymentTerms, setPaymentTerms] = useState('')
   const [deliveryTerms, setDeliveryTerms] = useState('')
+  const [vatPercent, setVatPercent] = useState('')
   const [note, setNote] = useState('')
   const [items, setItems] = useState<ItemForm[]>([])
 
@@ -54,6 +56,11 @@ export function QuotationStatusPage() {
         setQuotation(data)
         setPaymentTerms(data.payment_terms)
         setDeliveryTerms(data.delivery_terms)
+        setVatPercent(
+          data.vat_percent === null || data.vat_percent === undefined
+            ? ''
+            : String(data.vat_percent),
+        )
         setNote(data.note || '')
         setItems(
           data.items.map((i) => ({
@@ -74,7 +81,7 @@ export function QuotationStatusPage() {
         setAttempts(tries)
         setCustomer(cust)
         setError(null)
-        setLoading(false)
+        setLoadedForId(quotationId)
 
         // Poll only while in-flight — stop on COMPLETED / FAILED
         if (data.status === 'PENDING' || data.status === 'PROCESSING') {
@@ -83,12 +90,11 @@ export function QuotationStatusPage() {
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Load failed')
-          setLoading(false)
+          setLoadedForId(quotationId)
         }
       }
     }
 
-    setLoading(true)
     load()
     return () => {
       cancelled = true
@@ -118,9 +124,15 @@ export function QuotationStatusPage() {
     setSaving(true)
     setError(null)
     try {
+      const vatRaw = vatPercent.trim()
+      const vatValue = vatRaw === '' ? null : Number(vatRaw)
+      if (vatRaw !== '' && (Number.isNaN(vatValue) || vatValue! < 0 || vatValue! > 100)) {
+        throw new Error('VAT % phải từ 0 đến 100')
+      }
       const updated = await api.updateQuotation(quotationId, {
         payment_terms: paymentTerms,
         delivery_terms: deliveryTerms,
+        vat_percent: vatValue,
         note: note || null,
         items: items.map((item) => ({
           product_name: item.product_name.trim(),
@@ -143,7 +155,7 @@ export function QuotationStatusPage() {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)))
   }
 
-  if (loading && !quotation) return <p className="text-slate-500">Đang tải...</p>
+  if (loading) return <p className="text-slate-500">Đang tải...</p>
   if (error && !quotation) return <p className="text-red-600">Lỗi: {error}</p>
   if (!quotation) return <p className="text-slate-500">Không tìm thấy báo giá.</p>
 
@@ -202,7 +214,7 @@ export function QuotationStatusPage() {
             href={api.downloadUrl(quotation.id)}
             className="rounded bg-teal-700 px-3 py-2 text-sm font-medium text-white hover:bg-teal-800"
           >
-            Download (.docx)
+            Download (.pptx)
           </a>
         )}
       </div>
@@ -253,6 +265,20 @@ export function QuotationStatusPage() {
                 value={deliveryTerms}
                 onChange={(e) => setDeliveryTerms(e.target.value)}
                 required
+                disabled={saving}
+              />
+            </label>
+            <label className="text-sm sm:col-span-2">
+              VAT %
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="any"
+                placeholder="vd. 8"
+                className="mt-1 w-full max-w-xs rounded border px-2 py-1.5"
+                value={vatPercent}
+                onChange={(e) => setVatPercent(e.target.value)}
                 disabled={saving}
               />
             </label>
@@ -328,6 +354,14 @@ export function QuotationStatusPage() {
               </dd>
             </div>
             <div>
+              <dt className="text-slate-500">VAT %</dt>
+              <dd>
+                {quotation.vat_percent === null || quotation.vat_percent === undefined
+                  ? '—'
+                  : `${quotation.vat_percent}%`}
+              </dd>
+            </div>
+            <div>
               <dt className="text-slate-500">Ghi chú</dt>
               <dd>{quotation.note || '—'}</dd>
             </div>
@@ -347,7 +381,12 @@ export function QuotationStatusPage() {
               <dt className="text-slate-500">File</dt>
               <dd>
                 {quotation.status === 'COMPLETED' && quotation.output_path ? (
-                  <span className="break-all text-xs">{quotation.output_path}</span>
+                  <span className="break-all text-xs">
+                    {quotation.output_path.endsWith('.pptx')
+                      ? 'PowerPoint (.pptx)'
+                      : 'Document'}{' '}
+                    — <span className="font-mono">{quotation.output_path}</span>
+                  </span>
                 ) : (
                   'Chưa có file'
                 )}

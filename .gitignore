@@ -226,3 +226,6 @@ worker/output/*
 frontend/node_modules/
 frontend/dist/
 .DS_Store
+
+# Local IDE file history (Local History / similar)
+.history/

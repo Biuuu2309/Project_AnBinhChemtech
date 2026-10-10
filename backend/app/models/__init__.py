@@ -56,6 +56,7 @@ class Quotation(Base):
     )
     payment_terms: Mapped[str] = mapped_column(String(200), nullable=False)
     delivery_terms: Mapped[str] = mapped_column(String(200), nullable=False)
+    vat_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     output_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

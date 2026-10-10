@@ -25,7 +25,7 @@ def _close_all_active() -> None:
         db.close()
 
 
-def _payload(customer_id: str = "CUS-002", quantity: float = 10, note: str = "phase5-test"):
+def _payload(customer_id: str, quantity: float = 10, note: str = "phase5-test"):
     return {
         "customer_id": customer_id,
         "items": [
@@ -42,19 +42,75 @@ def _payload(customer_id: str = "CUS-002", quantity: float = 10, note: str = "ph
     }
 
 
+def _new_customer(client, suffix: str = "qt") -> str:
+    from uuid import uuid4
+
+    created = client.post(
+        "/api/customers",
+        json={
+            "name": "Test User",
+            "company": f"Co {suffix} {uuid4().hex[:6]}",
+            "email": f"{suffix}-{uuid4().hex[:8]}@ex.com",
+            "phone": "090",
+            "address": "HN",
+        },
+    )
+    assert created.status_code == 201, created.text
+    return created.json()["id"]
+
+
+def _item(name: str = "Chem A") -> dict:
+    return {
+        "product_name": name,
+        "specification": "99%",
+        "quantity": 10,
+        "unit_price": 1000,
+    }
+
+
 def test_validation_anti_duplicate_retry_and_missing_download():
     ensure_schema(engine)
     _close_all_active()
 
     with TestClient(app) as client:
-        assert client.post("/api/quotations", json=_payload(quantity=0)).status_code == 422
+        cid = _new_customer(client)
+        assert client.post("/api/quotations", json=_payload(cid, quantity=0)).status_code == 422
+        assert (
+            client.post(
+                "/api/quotations",
+                json={**_payload(cid, note="bad-vat"), "vat_percent": 101},
+            ).status_code
+            == 422
+        )
 
-        first = client.post("/api/quotations", json=_payload())
+        # PPTX V2: max 3 items at API (worker also enforces)
+        cid_limit = _new_customer(client, suffix="max3")
+        ok_3 = client.post(
+            "/api/quotations",
+            json={
+                **_payload(cid_limit, note="three-items-ok"),
+                "items": [_item("A"), _item("B"), _item("C")],
+            },
+        )
+        assert ok_3.status_code == 201, ok_3.text
+        assert len(ok_3.json()["items"]) == 3
+        _close_all_active()  # keep jobs/next focused on the main flow quotation
+
+        bad_4 = client.post(
+            "/api/quotations",
+            json={
+                **_payload(cid_limit, note="four-items-reject"),
+                "items": [_item("A"), _item("B"), _item("C"), _item("D")],
+            },
+        )
+        assert bad_4.status_code == 422
+
+        first = client.post("/api/quotations", json=_payload(cid))
         assert first.status_code == 201
         qid = first.json()["id"]
         assert first.json()["status"] == "PENDING"
 
-        second = client.post("/api/quotations", json=_payload())
+        second = client.post("/api/quotations", json=_payload(cid))
         assert second.status_code == 200
         assert second.json()["id"] == qid
 
@@ -87,8 +143,8 @@ def test_validation_anti_duplicate_retry_and_missing_download():
 
         out_dir = PROJECT_ROOT / "worker" / "output"
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_file = out_dir / f"{qid}.docx"
-        out_file.write_bytes(b"PK\x03\x04fake-docx-for-test")
+        out_file = out_dir / f"{qid}.pptx"
+        out_file.write_bytes(b"PK\x03\x04fake-pptx-for-test-allowlist")
 
         completed = client.post(
             f"/api/internal/jobs/{qid}/complete",

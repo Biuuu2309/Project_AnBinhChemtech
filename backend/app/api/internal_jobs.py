@@ -16,6 +16,7 @@ def _to_out(quotation: Quotation) -> QuotationOut:
         status=quotation.status.value,
         payment_terms=quotation.payment_terms,
         delivery_terms=quotation.delivery_terms,
+        vat_percent=quotation.vat_percent,
         note=quotation.note,
         output_path=quotation.output_path,
         error_message=quotation.error_message,

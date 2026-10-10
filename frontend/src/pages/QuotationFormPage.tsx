@@ -25,22 +25,34 @@ export function QuotationFormPage() {
   const idempotencyKeyRef = useRef(createIdempotencyKey())
 
   const [customer, setCustomer] = useState<Customer | null>(null)
-  const [loadingCustomer, setLoadingCustomer] = useState(true)
+  const [loadedForId, setLoadedForId] = useState<string | null>(null)
   const [items, setItems] = useState<ItemForm[]>([emptyItem()])
   const [paymentTerms, setPaymentTerms] = useState('30 days')
   const [deliveryTerms, setDeliveryTerms] = useState('Within 7 days')
+  const [vatPercent, setVatPercent] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const loadingCustomer = Boolean(customerId) && loadedForId !== customerId
 
   useEffect(() => {
     if (!customerId) return
-    setLoadingCustomer(true)
+    let cancelled = false
     api
       .getCustomer(customerId)
-      .then(setCustomer)
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoadingCustomer(false))
+      .then((c) => {
+        if (cancelled) return
+        setCustomer(c)
+        setLoadedForId(customerId)
+      })
+      .catch((err: Error) => {
+        if (cancelled) return
+        setError(err.message)
+        setLoadedForId(customerId)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [customerId])
 
   function updateItem(index: number, field: keyof ItemForm, value: string) {
@@ -53,11 +65,17 @@ export function QuotationFormPage() {
     setError(null)
     setSubmitting(true)
     try {
+      const vatRaw = vatPercent.trim()
+      const vatValue = vatRaw === '' ? null : Number(vatRaw)
+      if (vatRaw !== '' && (Number.isNaN(vatValue) || vatValue! < 0 || vatValue! > 100)) {
+        throw new Error('VAT % phải từ 0 đến 100')
+      }
       const quotation = await api.createQuotation(
         {
           customer_id: customerId,
           payment_terms: paymentTerms,
           delivery_terms: deliveryTerms,
+          vat_percent: vatValue,
           note: note || undefined,
           items: items.map((item) => ({
             product_name: item.product_name.trim(),
@@ -161,10 +179,10 @@ export function QuotationFormPage() {
         <button
           type="button"
           className="text-sm text-teal-700 hover:underline disabled:opacity-50"
-          disabled={submitting}
-          onClick={() => setItems((prev) => [...prev, emptyItem()])}
+          disabled={submitting || items.length >= 3}
+          onClick={() => setItems((prev) => (prev.length >= 3 ? prev : [...prev, emptyItem()]))}
         >
-          + Thêm dòng sản phẩm
+          + Thêm dòng sản phẩm{items.length >= 3 ? ' (tối đa 3)' : ''}
         </button>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -187,6 +205,39 @@ export function QuotationFormPage() {
               required
               disabled={submitting}
             />
+          </label>
+          <label className="text-sm sm:col-span-2">
+            VAT % (để trống = không điền giá gồm VAT trên PPTX)
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="any"
+              placeholder="vd. 8"
+              className="mt-1 w-full max-w-xs rounded border border-slate-300 px-2 py-1.5"
+              value={vatPercent}
+              onChange={(e) => setVatPercent(e.target.value)}
+              disabled={submitting}
+            />
+            {(() => {
+              const vat = Number(vatPercent)
+              if (!vatPercent.trim() || Number.isNaN(vat) || vat <= 0) return null
+              return (
+                <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
+                  {items.map((item, i) => {
+                    const excl = Number(item.unit_price)
+                    if (Number.isNaN(excl)) return null
+                    const incl = excl * (1 + vat / 100)
+                    return (
+                      <li key={i}>
+                        SP #{i + 1}: {excl.toLocaleString()} → gồm VAT{' '}
+                        {incl.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )
+            })()}
           </label>
         </div>
 

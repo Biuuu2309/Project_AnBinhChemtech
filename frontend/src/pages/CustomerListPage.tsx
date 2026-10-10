@@ -25,8 +25,24 @@ export function CustomerListPage() {
   }
 
   useEffect(() => {
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false
+    api
+      .listCustomers(undefined, true)
+      .then((rows) => {
+        if (cancelled) return
+        setCustomers(rows)
+        setError(null)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setError(err instanceof Error ? err.message : 'Load failed')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   function onSearch(e: FormEvent) {

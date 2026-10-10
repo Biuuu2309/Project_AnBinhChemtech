@@ -11,8 +11,7 @@ import httpx
 
 from ai.service import apply_note_only, assert_protected_fields_unchanged, normalize_quotation_note
 from config import settings
-from jobs.create_template import create_quotation_template
-from jobs.template_service import build_field_mapping, fill_template
+from jobs.pptx_template_service import fill_pptx_template
 from jobs.validator import validate_quotation_file
 
 logging.basicConfig(
@@ -44,12 +43,16 @@ def _process_job(client: httpx.Client, job: dict) -> None:
     job_for_doc = apply_note_only(job, normalized_note)
     assert_protected_fields_unchanged(job, job_for_doc)
 
-    # Deterministic pipeline (mapping reads qty/price/terms from original job fields)
-    mapping = build_field_mapping(job_for_doc, customer)
-    output_path = Path(settings.output_dir) / f"{quotation_id}.docx"
+    # Deterministic PPTX V2 fill by shape id (note may be AI-normalized; commercial fields protected)
+    output_path = Path(settings.output_dir) / f"{quotation_id}.pptx"
 
     try:
-        fill_template(Path(settings.template_path), output_path, mapping)
+        fill_pptx_template(
+            Path(settings.template_path),
+            output_path,
+            job_for_doc,
+            customer,
+        )
         validate_quotation_file(output_path)
     except Exception as exc:
         logger.error(
@@ -102,8 +105,10 @@ def poll_once(client: httpx.Client) -> bool:
 def run(once: bool = False) -> None:
     template = Path(settings.template_path)
     if not template.is_file():
-        create_quotation_template(template)
-        logger.info("Generated missing template at %s", template)
+        raise FileNotFoundError(
+            f"PPTX template missing: {template}. "
+            "Place 01_Bao_Gia_An_Binh_Chemtech.V2.pptx under worker/templates/."
+        )
 
     Path(settings.output_dir).mkdir(parents=True, exist_ok=True)
     logger.info(

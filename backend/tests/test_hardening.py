@@ -74,9 +74,23 @@ def test_validation_and_business_rules_and_idempotency():
         assert client.get("/api/quotations/QT-NOPE").status_code == 404
         assert client.post("/api/quotations/QT-NOPE/retry").status_code == 400
 
+        # fresh active customer (shared DB may have deactivated seeds)
+        cust = client.post(
+            "/api/customers",
+            json={
+                "name": "Idem",
+                "company": f"Idem Co {uuid4().hex[:6]}",
+                "email": f"idem-{uuid4().hex[:8]}@ex.com",
+                "phone": "1",
+                "address": "a",
+            },
+        )
+        assert cust.status_code == 201, cust.text
+        cid_active = cust.json()["id"]
+
         # idempotency key (unique per run — shared SQLite keeps prior keys)
         payload = {
-            "customer_id": "CUS-001",
+            "customer_id": cid_active,
             "items": [
                 {
                     "product_name": "A",
@@ -150,10 +164,21 @@ def test_validation_and_business_rules_and_idempotency():
 
         # path traversal / wrong name rejected on complete
         _close_all_active()
+        cust2 = client.post(
+            "/api/customers",
+            json={
+                "name": "Sec",
+                "company": f"Sec Co {uuid4().hex[:6]}",
+                "email": f"sec-{uuid4().hex[:8]}@ex.com",
+                "phone": "1",
+                "address": "a",
+            },
+        )
+        assert cust2.status_code == 201, cust2.text
         c = client.post(
             "/api/quotations",
             json={
-                "customer_id": "CUS-002",
+                "customer_id": cust2.json()["id"],
                 "items": [
                     {
                         "product_name": "A",

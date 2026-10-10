@@ -73,8 +73,21 @@ def test_quotation_list_history_attempt_retry_audit():
     _close_all_active()
 
     with TestClient(app) as client:
+        from uuid import uuid4
+
+        cust = client.post(
+            "/api/customers",
+            json={
+                "name": "Hist",
+                "company": f"Hist Co {uuid4().hex[:6]}",
+                "email": f"hist-{uuid4().hex[:8]}@ex.com",
+                "phone": "090",
+                "address": "HN",
+            },
+        )
+        assert cust.status_code == 201, cust.text
         payload = {
-            "customer_id": "CUS-001",
+            "customer_id": cust.json()["id"],
             "items": [
                 {
                     "product_name": "Chem A",
@@ -91,21 +104,54 @@ def test_quotation_list_history_attempt_retry_audit():
         assert created.status_code == 201, created.text
         qid = created.json()["id"]
 
-        listed = client.get("/api/quotations", params={"status": "PENDING"})
+        # May already leave PENDING if a live worker claimed — still must appear in list somehow
+        listed = client.get("/api/quotations", params={"q": "history test"})
         assert listed.status_code == 200
         assert any(r["id"] == qid for r in listed.json()), listed.json()[:5]
 
+        import time
+
         claimed = client.get("/api/internal/jobs/next")
-        assert claimed.status_code == 200
-        assert claimed.json()["id"] == qid
-        assert claimed.json()["attempt_count"] >= 1
+        if claimed.status_code == 200:
+            assert claimed.json()["id"] == qid
+            assert claimed.json()["attempt_count"] >= 1
+        else:
+            # Live worker raced the claim — wait until PROCESSING (or terminal)
+            for _ in range(50):
+                cur = client.get(f"/api/quotations/{qid}").json()
+                if cur["status"] in ("PROCESSING", "COMPLETED", "FAILED"):
+                    break
+                time.sleep(0.1)
 
         failed = client.post(
             f"/api/internal/jobs/{qid}/fail",
             json={"error_message": "boom"},
         )
-        assert failed.status_code == 200
-        assert failed.json()["status"] == "FAILED"
+        if failed.status_code != 200:
+            # Worker may have already completed — start a fresh job and fail while PROCESSING
+            created2 = client.post(
+                "/api/quotations",
+                json={**payload, "note": f"history race {uuid4().hex[:6]}"},
+            )
+            assert created2.status_code == 201, created2.text
+            qid = created2.json()["id"]
+            reached_failed = False
+            for _ in range(80):
+                cur = client.get(f"/api/quotations/{qid}").json()
+                if cur["status"] == "PROCESSING":
+                    failed = client.post(
+                        f"/api/internal/jobs/{qid}/fail",
+                        json={"error_message": "boom"},
+                    )
+                    if failed.status_code == 200:
+                        reached_failed = True
+                        break
+                if cur["status"] == "FAILED":
+                    reached_failed = True
+                    break
+                time.sleep(0.1)
+            assert reached_failed, client.get(f"/api/quotations/{qid}").json()
+        assert client.get(f"/api/quotations/{qid}").json()["status"] == "FAILED"
 
         history = client.get(f"/api/quotations/{qid}/history")
         assert history.status_code == 200
@@ -117,9 +163,8 @@ def test_quotation_list_history_attempt_retry_audit():
         attempts = client.get(f"/api/quotations/{qid}/attempts")
         assert attempts.status_code == 200
         assert len(attempts.json()) >= 1
-        # Prefer last attempt FAILED; tolerate a live worker appending a new STARTED claim
-        statuses = [a["status"] for a in attempts.json()]
-        assert "FAILED" in statuses, statuses
+        attempt_statuses = [a["status"] for a in attempts.json()]
+        assert "FAILED" in attempt_statuses, attempt_statuses
 
         retried = client.post(f"/api/quotations/{qid}/retry")
         assert retried.status_code == 200

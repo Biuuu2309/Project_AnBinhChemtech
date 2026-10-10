@@ -168,6 +168,7 @@ def create_quotation(
         status=QuotationStatus.PENDING,
         payment_terms=payload.payment_terms,
         delivery_terms=payload.delivery_terms,
+        vat_percent=payload.vat_percent,
         note=payload.note,
         attempt_count=0,
         idempotency_key=key,
@@ -223,6 +224,8 @@ def update_quotation(db: Session, quotation_id: str, payload: QuotationUpdate) -
         quotation.payment_terms = data["payment_terms"]
     if "delivery_terms" in data and data["delivery_terms"] is not None:
         quotation.delivery_terms = data["delivery_terms"]
+    if "vat_percent" in data:
+        quotation.vat_percent = data["vat_percent"]
     if "note" in data:
         quotation.note = data["note"]
     if "items" in data and data["items"] is not None:

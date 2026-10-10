@@ -19,6 +19,7 @@ PROTECTED_JOB_FIELDS = (
     "specification",
     "payment_terms",
     "delivery_terms",
+    "vat_percent",
     "items",
     "customer_id",
     "id",

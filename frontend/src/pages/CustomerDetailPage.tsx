@@ -9,18 +9,20 @@ export function CustomerDetailPage() {
   const navigate = useNavigate()
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loadedForId, setLoadedForId] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deactivating, setDeactivating] = useState(false)
   const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', address: '' })
+  const loading = Boolean(customerId) && loadedForId !== customerId
 
   useEffect(() => {
     if (!customerId) return
-    setLoading(true)
+    let cancelled = false
     api
       .getCustomer(customerId)
       .then((c) => {
+        if (cancelled) return
         setCustomer(c)
         setForm({
           name: c.name,
@@ -30,9 +32,16 @@ export function CustomerDetailPage() {
           address: c.address,
         })
         setError(null)
+        setLoadedForId(customerId)
       })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false))
+      .catch((err: Error) => {
+        if (cancelled) return
+        setError(err.message)
+        setLoadedForId(customerId)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [customerId])
 
   async function onSave(e: FormEvent) {

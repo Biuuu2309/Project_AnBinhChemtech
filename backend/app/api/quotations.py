@@ -26,6 +26,7 @@ def _to_out(quotation: Quotation) -> QuotationOut:
         status=quotation.status.value,
         payment_terms=quotation.payment_terms,
         delivery_terms=quotation.delivery_terms,
+        vat_percent=quotation.vat_percent,
         note=quotation.note,
         output_path=quotation.output_path,
         error_message=quotation.error_message,
@@ -134,10 +135,18 @@ def download_quotation(quotation_id: str, db: Session = Depends(get_db)):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    is_pptx = path.suffix.lower() == ".pptx"
+    media = (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        if is_pptx
+        else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    # Download name is user-facing; on-disk allowlist still requires {id}.pptx|.docx
+    download_name = f"BaoGia-{quotation_id}.pptx" if is_pptx else path.name
     return FileResponse(
         path,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=path.name,
+        media_type=media,
+        filename=download_name,
     )
 
 

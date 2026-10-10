@@ -27,7 +27,8 @@ def _is_relative_to(path: Path, root: Path) -> bool:
 def resolve_allowed_output_path(raw_path: str, *, quotation_id: str) -> Path:
     """
     Prevent arbitrary filesystem access on download/complete.
-    Path must resolve under allowed output dir and be named {quotation_id}.docx.
+    Path must resolve under allowed output dir and be named
+    {quotation_id}.pptx (preferred) or legacy {quotation_id}.docx.
     """
     if not raw_path or not str(raw_path).strip():
         raise ValueError("output_path is required")
@@ -36,9 +37,11 @@ def resolve_allowed_output_path(raw_path: str, *, quotation_id: str) -> Path:
     if not any(_is_relative_to(path, root) for root in _allowed_roots()):
         raise ValueError("output_path is outside allowed output directory")
 
-    expected = f"{quotation_id}.docx"
-    if path.name != expected:
-        raise ValueError(f"output filename must be {expected}")
+    allowed_names = {f"{quotation_id}.pptx", f"{quotation_id}.docx"}
+    if path.name not in allowed_names:
+        raise ValueError(
+            f"output filename must be {quotation_id}.pptx (or legacy .docx)"
+        )
 
     return path
 

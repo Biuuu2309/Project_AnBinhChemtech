@@ -33,19 +33,19 @@ Index: [`README.md`](README.md). ASCII only — no extra tooling required.
 [Worker] Claim job (PROCESSING)
         │
         ▼
-[AI/Codex] Normalize free-text note (optional)
+[AI/Codex] Normalize free-text note (optional; not written to PPTX V2 slide)
         │   protected commercial fields unchanged
         ▼
-[Template Service] Fill DOCX from mapping
+[PPTX fill] Shape-id mapping on template V2 (copy + mutate)
         │
         ▼
-[Validator] File exists, opens, non-empty
+[Validator] PPTX ZIP / slides present
         │
         ▼
-[API] COMPLETED + path allowlist
+[API] COMPLETED + path allowlist ({id}.pptx)
         │
         ▼
-[UI] Status / History / Attempts / Download
+[UI] Status / History / Attempts / Download (.pptx)
 ```
 
 ## AI boundary
@@ -53,11 +53,11 @@ Index: [`README.md`](README.md). ASCII only — no extra tooling required.
 ```text
                  ┌── USE_CODEX_CLI=false ──► MockAI (demo default)
 Quotation.note ──┤
-                 └── USE_CODEX_CLI=true  ──► CodexRunner (Mac mini boundary)
+                 └── USE_CODEX_CLI=true  ──► CodexRunner (stub boundary)
                                                     │
                                                     ▼
-                                          note summary only
+                                          note summary only (DB/UI; not on V2 slide)
                                                     │
                                                     ▼
-                                          Template Service (deterministic)
+                                          PPTX fill is deterministic (shape ids)
 ```

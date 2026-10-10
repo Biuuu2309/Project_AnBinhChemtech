@@ -1,89 +1,45 @@
 # An Bình Chemtech — Quotation Automation Prototype
 
-Prototype end-to-end: **Internal Web UI → FastAPI → Automation Worker (Mock Mac mini) → optional AI note → DOCX**.
+Prototype đánh giá Fresher/Junior: **Web nội bộ (mock) → FastAPI → Automation Worker → điền mẫu PowerPoint V2 → tải `.pptx`**.
 
-Assessment deadline: **25/09/2026**.
+Đề bài công ty: [`docs/README.md`](docs/README.md). Template: [`docs/01_Bao_Gia_An_Binh_Chemtech.V2.pptx`](docs/01_Bao_Gia_An_Binh_Chemtech.V2.pptx).  
+Kế hoạch ánh xạ PPTX: [`docs/pptx-v2-integration-plan.md`](docs/pptx-v2-integration-plan.md). Demo 3–5’: [`docs/DEMO.md`](docs/DEMO.md).
 
-## Documentation
-
-Tất cả tài liệu nằm trong [`docs/`](docs/README.md):
-
-| File | Nội dung |
-|------|----------|
-| [Describle.txt](docs/Describle.txt) | Đề bài |
-| [solution-plan.md](docs/solution-plan.md) / [VI](docs/solution-plan-vi.md) | Solution plan as-built |
-| [architecture-diagrams.md](docs/architecture-diagrams.md) | Sơ đồ |
-| [tech-stack.md](docs/tech-stack.md) | Tech stack |
-| [roadmap.md](docs/roadmap.md) | Phase status |
-| [samples/](docs/samples/README.md) | DOCX mẫu |
+> **Đây là prototype**, không phải production CRM. **Không** tích hợp Laravel/PostgreSQL/Tailscale/Mac mini thật trong repo này — các thành phần đó được **mô phỏng** bằng React UI + worker local.
 
 ---
 
-## 1. Project overview
+## 1. Mục tiêu & phạm vi
 
-An Bình Chemtech needs a controlled way to create customer quotations from the internal management system, hand work off to an automation agent (Mac mini), and return a standardized DOCX with trackable status.
-
-This repository is a **working prototype**, not a production CRM. It demonstrates:
-
-- Clear separation: UI / API / worker
-- Quotation lifecycle with status, history, attempts
-- Deterministic DOCX generation from a template
-- Optional AI only for free-text **note** normalization
-- Retry after failure, idempotent create, safe file download
+| Có trong prototype | Không có / mock |
+|--------------------|-----------------|
+| Tạo KH + báo giá, trạng thái, retry, history/attempts/audit | Hệ thống nội bộ Laravel thật |
+| Worker poll job, điền PPTX V2 theo shape ID | Mac mini / Tailscale thật |
+| Download PPTX an toàn (allowlist thư mục) | JWT/RBAC, Postgres |
+| MockAI chuẩn hóa **note** (optional; note không lên slide V2) | Codex CLI thật hoàn tất note |
+| Idempotency-Key trên create; `% VAT` tuỳ chọn → giá gồm VAT trên PPTX | Map mã `ABC-…/QT/…` tự động |
 
 ---
 
-## 2. Architecture
+## 2. Kiến trúc & workflow
 
 ```text
-┌─────────────────────────────────────┐
-│  Internal Management System (FE)    │
-│  React + TypeScript + Vite          │
-│  Customer · Quotation form · Status │
-└─────────────────┬───────────────────┘
-                  │ REST (/api)
-                  ▼
-┌─────────────────────────────────────┐
-│  Backend API                        │
-│  FastAPI + Pydantic + SQLAlchemy    │
-│  Validation · Quotation jobs · SQLite│
-│  History · Attempts · Audit         │
-└─────────────────┬───────────────────┘
-                  │ poll claim / complete / fail
-                  ▼
-┌─────────────────────────────────────┐
-│  Automation Worker (= Mock Mac mini)│
-│  Python process                     │
-│                                     │
-│  Optional AI (note only)            │
-│    MockAI (default) | CodexRunner   │
-│           │                         │
-│           ▼                         │
-│  Deterministic TemplateService      │
-│           │                         │
-│           ▼                         │
-│  Output Validator → DOCX            │
-└─────────────────────────────────────┘
+React (Vite)  —mock Internal Management System—
+      │ REST /api
+      ▼
+FastAPI + SQLite
+  Validation · Quotation job · History/Attempts/Audit
+      │ poll claim / complete / fail
+      ▼
+Automation Worker  —mock thiết bị thực thi / Mac mini—
+  Optional MockAI (note only)
+      ▼
+  PPTX fill (shape id) + Validator
+      ▼
+  worker/output/{quotation_id}.pptx
+      ▼
+UI: status · Retry · Download (.pptx)
 ```
-
-| Layer | Responsibility |
-|-------|----------------|
-| Frontend | Forms, status polling, download/retry UX |
-| Backend | Authz-free CRUD, validation, job state machine, file allowlist |
-| Worker | Claim jobs, optional note AI, fill template, validate, report result |
-
----
-
-## 3. Main workflow
-
-1. User opens **Customer detail** → **Tạo báo giá** (blocked if customer inactive).
-2. Form submits `POST /api/quotations` with header `Idempotency-Key`.
-3. Backend stores quotation as **PENDING** (events + audit).
-4. Worker polls `GET /api/internal/jobs/next` → claim → **PROCESSING**.
-5. Optional AI normalizes **note** only (MockAI by default).
-6. TemplateService fills DOCX; Validator checks file.
-7. Worker `POST .../complete` → **COMPLETED** (or `.../fail` → **FAILED**).
-8. UI polls until **COMPLETED** or **FAILED**; Download / Retry accordingly.
 
 ```text
 PENDING → PROCESSING → COMPLETED
@@ -92,43 +48,50 @@ PENDING → PROCESSING → COMPLETED
 
 ---
 
-## 4. Tech stack
+## 3. Tech stack (thực tế trong repo)
 
-| Area | Choice |
-|------|--------|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS 4, React Router |
-| Backend | FastAPI, Pydantic, SQLAlchemy, SQLite |
-| Worker | Python, httpx, python-docx |
-| AI (demo) | MockAI rule-based note cleanup |
-| AI (prod boundary) | `CodexRunner` → Codex CLI on Mac mini |
-| Tests | pytest (backend + worker) |
+| Lớp | Công nghệ |
+|-----|-----------|
+| Frontend | React, TypeScript, Vite, Tailwind CSS, React Router |
+| Backend | Python, FastAPI, Pydantic, SQLAlchemy, **SQLite** |
+| Worker | Python, httpx, **python-pptx**, python-docx (legacy) |
+| AI (demo) | MockAI (rule-based); CodexRunner = boundary (stub) |
+| Tests | pytest (backend, worker); `npm run build` |
+
+Stack Laravel / Postgres trong [`docs/README.md`](docs/README.md) là **môi trường công ty sau này**, không phải stack của prototype này.
 
 ---
 
-## 5. Project structure
+## 4. Cấu trúc thư mục
 
 ```text
-Project_AnBinhChemtech/
-├── frontend/          # Internal management UI
-├── backend/           # FastAPI + SQLite
-├── worker/            # Automation agent (Mock Mac mini)
-│   ├── ai/            # MockAI + AIService + note validation
-│   ├── codex/         # Codex CLI integration boundary
-│   ├── jobs/          # Template + validator
-│   └── output/        # Generated DOCX
-├── docs/              # All docs: brief, solution plan, diagrams, samples
-├── .env.example
-└── README.md          # Runbook (this file)
+frontend/                 # UI khách hàng + báo giá
+backend/                  # API + SQLite
+worker/
+  ai/                     # MockAI + validate note
+  codex/                  # Codex CLI boundary (stub)
+  jobs/
+    pptx_mapping.py       # Shape-id → dữ liệu (V2)
+    pptx_template_service.py
+    template_service.py   # DOCX legacy (không còn happy path)
+    validator.py
+  templates/
+    01_Bao_Gia_An_Binh_Chemtech.V2.pptx   # template chính
+    quotation_template.docx               # legacy
+  output/                 # file sinh ra (.pptx)
+docs/                     # đề bài, plan PPTX, demo, samples
+.env.example
+README.md
 ```
 
 ---
 
-## 6. Setup / installation
+## 5. Cấu hình & chạy local
 
-**Requirements:** Python 3.11+, Node.js 20+.
+**Yêu cầu:** Python 3.11+, Node.js 20+.
 
 ```powershell
-# From repo root
+# Từ root repo
 copy .env.example .env
 
 cd backend
@@ -143,158 +106,114 @@ cd ..\frontend
 npm install
 ```
 
----
-
-## 7. Run backend / worker / frontend
-
-**Three terminals are required.** Without the worker, jobs stay `PENDING` and the UI keeps polling.
+**Ba terminal (bắt buộc có Worker — nếu không job kẹt PENDING):**
 
 ```powershell
-# Terminal 1 — Backend API
+# 1) Backend
 cd backend
 .\.venv\Scripts\uvicorn.exe app.main:app --reload --host 127.0.0.1 --port 8000
 
-# Terminal 2 — Automation Worker (Mock Mac mini)
+# 2) Worker
 cd worker
 .\.venv\Scripts\python.exe main.py
 
-# Terminal 3 — Frontend
+# 3) Frontend
 cd frontend
 npm run dev
 ```
 
-| URL | Purpose |
-|-----|---------|
-| http://localhost:5173 | Demo UI (Vite proxies `/api` → `:8000`) |
-| http://127.0.0.1:8000/docs | OpenAPI / Swagger |
-| http://127.0.0.1:8000/health | Health check |
+| URL | Mục đích |
+|-----|----------|
+| http://localhost:5173 | UI demo |
+| http://127.0.0.1:8000/docs | OpenAPI |
+| http://127.0.0.1:8000/health | Health |
 
-### Exact demo commands (copy-paste)
+`.env.example` đã đủ cho local. **Không dùng Docker** trong prototype này (3 process đơn giản hơn cho bài đánh giá).
+
+---
+
+## 6. Demo: tạo báo giá → theo dõi → tải PPTX
+
+1. Mở UI → tạo/chọn khách hàng **active**.
+2. **Tạo báo giá** (tối đa **3** dòng SP — API trả **422** nếu nhiều hơn; worker vẫn fail-safe nếu >3).
+3. Trang chi tiết poll `PENDING` → `PROCESSING` → `COMPLETED` / `FAILED`.
+4. **Download (.pptx)** → file tải tên `BaoGia-{id}.pptx`.
+5. (Tuỳ chọn) Khi `FAILED`: sửa (PENDING/FAILED) → **Retry**.
+6. KH **inactive** → không tạo báo giá mới (UI + API 400).
+
+Dữ liệu demo: dùng công ty giả (vd. `Cong Ty Demo An Binh`), không dùng KH/bí mật thật.
+
+---
+
+## 7. Chạy test
 
 ```powershell
-# Setup (once)
-copy .env.example .env
-cd backend; python -m venv .venv; .\.venv\Scripts\pip install -r requirements.txt
-cd ..\worker; python -m venv .venv; .\.venv\Scripts\pip install -r requirements.txt
-cd ..\frontend; npm install
+cd backend
+.\.venv\Scripts\python.exe -m pytest tests -q
 
-# Run (3 terminals)
-cd backend;  .\.venv\Scripts\uvicorn.exe app.main:app --reload --host 127.0.0.1 --port 8000
-cd worker;   .\.venv\Scripts\python.exe main.py
-cd frontend; npm run dev
+cd ..\worker
+.\.venv\Scripts\python.exe -m pytest tests -q
 
-# Tests
-cd backend;  .\.venv\Scripts\python.exe -m pytest tests -q
-cd worker;   .\.venv\Scripts\python.exe -m pytest tests -q
-cd frontend; npm run build
+cd ..\frontend
+npm run build
 ```
 
 ---
 
-## 8. Demo flow
+## 8. Template PPTX & ánh xạ trường
 
-1. Open http://localhost:5173 → pick an **active** customer (or create one).
-2. **Tạo báo giá** → fill items / terms / note (e.g. `giao gấp, cần mẫu`) → **Gửi**.
-3. Status page shows **PENDING** then **PROCESSING** then **COMPLETED**.
-4. Worker log should include `ai_note` / MockAI when `AI_NOTE_ENABLED=true`.
-5. Click **Download (.docx)** — file under `worker/output/{quotation_id}.docx`.
-6. Optional: force a failure via API, then **Retry** on the UI until **COMPLETED**.
-7. Optional: **Deactivate** customer → **Tạo báo giá** is blocked (UI + API `400`).
+- Nguồn: `docs/01_Bao_Gia_An_Binh_Chemtech.V2.pptx` (copy trong `worker/templates/`).
+- File V2 **không có** tên shape `txt_*` (README công ty mô tả ideal); prototype map theo **shape ID** đã inventory.
+- Chi tiết: [`docs/pptx-v2-integration-plan.md`](docs/pptx-v2-integration-plan.md).
 
-**Note:** MockAI-normalized wording is applied when filling the DOCX. The API still stores the original note entered by the user.
+| Shape ID | Nội dung điền |
+|----------|----------------|
+| 20 | `customer.company` |
+| 28/32/36 | `product_name` (tối đa 3 dòng) |
+| 29/33/37 | `unit_price` (chưa VAT) |
+| 30/34/38 | `unit_price × (1 + vat_percent/100)` nếu có `% VAT`; không thì trống |
+| 49/50/51 | Quy cách parse từ `specification`, mặc định `25` |
+| 42 | Ngày/tháng từ `created_at`, giữ **năm 2026** |
+| 46 | **Không ghi** (C-B — giữ sample template) |
 
----
-
-## 9. API overview
-
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/health` | Liveness |
-| GET/POST | `/api/customers` | List / create |
-| GET/PUT | `/api/customers/{id}` | Detail / update |
-| POST | `/api/customers/{id}/deactivate` | Soft-deactivate |
-| GET/POST | `/api/quotations` | List / create (`Idempotency-Key` optional but used by FE) |
-| GET/PUT | `/api/quotations/{id}` | Detail / update (`PENDING`\|`FAILED` only) |
-| GET | `/api/quotations/{id}/history` | Status events |
-| GET | `/api/quotations/{id}/attempts` | Processing attempts |
-| GET | `/api/quotations/{id}/download` | DOCX (COMPLETED only; path allowlisted) |
-| POST | `/api/quotations/{id}/retry` | FAILED → PENDING |
-| GET | `/api/internal/jobs/next` | Worker claim (`204` if empty) |
-| POST | `/api/internal/jobs/{id}/complete` | Worker success |
-| POST | `/api/internal/jobs/{id}/fail` | Worker failure |
-| GET | `/api/audit` | Audit log |
-
-Full interactive docs: `/docs`.
+Không đưa `payment_terms` / `delivery_terms` / `note` lên slide (giữ trong DB/UI).
 
 ---
 
-## 10. AI / MockAI / Codex role
+## 9. Ví dụ đầu ra
 
-| Question | Answer in this prototype |
-|----------|--------------------------|
-| Where does AI run? | Worker, after claim, **before** TemplateService |
-| What may AI change? | **Only** free-text `note` |
-| What stays deterministic? | Items, qty, prices, payment/delivery terms, DOCX fill, validation, status machine |
-| What is MockAI? | Rule-based note cleanup + simple tags — **no LLM call** |
-| What is CodexRunner? | **Integration boundary** for real Codex CLI on Mac mini production |
-| Default config? | `USE_CODEX_CLI=false`, `AI_NOTE_ENABLED=true`, `AI_FAIL_JOB_ON_ERROR=false` |
-
-**Prototype today uses MockAI.**  
-**Codex CLI is the production integration point** on Mac mini: set `USE_CODEX_CLI=true`, install/authenticate Codex, and finish wiring `codex exec` (or equivalent) inside `worker/codex/codex_runner.py`. Backend and TemplateService stay unchanged.
-
-If AI fails / Codex is unavailable → fallback keeps the original note (unless `AI_FAIL_JOB_ON_ERROR=true`).
+- Mẫu sinh từ pipeline: [`docs/samples/QT-DEMO-SAMPLE.pptx`](docs/samples/QT-DEMO-SAMPLE.pptx)
+- Template gốc: [`docs/01_Bao_Gia_An_Binh_Chemtech.V2.pptx`](docs/01_Bao_Gia_An_Binh_Chemtech.V2.pptx)
+- Runtime: `worker/output/{quotation_id}.pptx`
 
 ---
 
-## 11. Completed features
+## 10. Mock / chưa hoàn thành
 
-- Customer list / search / create / edit / soft-deactivate
-- Quotation create / update (PENDING|FAILED) / list / status detail
-- Idempotency-Key on create; anti-dup for active PENDING/PROCESSING per customer
-- Worker poll → claim → optional AI note → template → validate → complete/fail
-- Status badges, error message on FAILED, Retry / Download gating
-- Processing history, processing attempts, audit log
-- Path-allowlisted DOCX download (`worker/output/{id}.docx` only)
-- Backend + worker tests; frontend production build
-
----
-
-## 12. Mocked / unimplemented parts
-
-| Item | Status |
-|------|--------|
-| Mac mini hardware / agent | **Mocked** by local `worker/` process |
-| Real Codex CLI note invoke | **Boundary only** — probe/stub; MockAI used for demo |
-| JWT / RBAC / multi-tenant | **Unimplemented** (out of assessment scope) |
-| Postgres / Redis / queue broker | **Unimplemented** (SQLite + HTTP poll) |
-| Production dashboard / analytics | **Unimplemented** |
-| Stuck-PROCESSING auto-recovery / lease timeout | **Unimplemented** |
+| Thành phần | Trạng thái |
+|------------|------------|
+| Internal UI (React) | **Implemented** (mock Laravel IMS) |
+| FastAPI + SQLite job API | **Implemented** |
+| Worker fill PPTX V2 | **Implemented** |
+| MockAI note | **Implemented** (note không lên slide) |
+| Codex CLI | **Mock/stub** boundary |
+| Laravel / Postgres / Tailscale / Mac mini | **Not integrated** — mô tả trong đề bài công ty |
+| Mã `ABC-…/QT/…` | **Chưa** (C-B giữ sample trên template) |
+| VAT gồm thuế | **Có** — nhập `vat_percent` trên báo giá |
+| JWT / RBAC | **Out of scope** |
+| Auto-recovery job kẹt PROCESSING | **Chưa** |
 
 ---
 
-## 13. Known limitations
+## 11. Hạn chế & hướng tiếp theo
 
-- Local prototype: internal job endpoints are **unauthenticated** (anyone who can reach `:8000` can claim jobs).
-- If the worker dies mid-job, a quotation can remain **PROCESSING** until manual DB cleanup or a fresh demo DB.
-- Shared SQLite file; not for concurrent multi-writer production load.
-- Concurrent creates with the same new Idempotency-Key may race (unique index) — rare in single-user demo.
-- `npm run build` output needs a reverse proxy for `/api` (dev server already proxies).
-- Normalized note appears in the **DOCX**; UI shows the stored original note.
+- Internal job API **không auth** (chỉ local demo).
+- Worker chết giữa chừng → có thể kẹt `PROCESSING`.
+- Cột giá gồm VAT: điền khi có `% VAT`; shape mã báo giá vẫn sample (C-B).
+- Production: deploy worker trên thiết bị thực thi (Tailscale), auth nội bộ, Postgres, rule VAT/mã, Codex thật nếu cần.
 
 ---
 
-## 14. Production improvements
+## 12. AI tools khi phát triển
 
-1. Deploy `worker/` on Mac mini; enable real Codex CLI (`USE_CODEX_CLI=true` + full `codex exec`).
-2. Add auth (JWT/mTLS) for UI and **especially** internal job APIs.
-3. Replace SQLite with Postgres; add job lease / heartbeat for stuck PROCESSING.
-4. Persist idempotency key + payload hash with TTL; distributed lock if multi-instance API.
-5. Object storage for DOCX; signed download URLs.
-6. Structured observability (correlation id across FE → API → worker).
-7. Queue (Redis/SQS) instead of HTTP poll if throughput grows.
-
----
-
-## Sample quotation file
-
-`docs/samples/QT-2026-SAMPLE.docx` — see [`docs/samples/README.md`](docs/samples/README.md).
+Cursor (AI-assisted). Ứng viên chịu trách nhiệm giải thích kiến trúc và demo.

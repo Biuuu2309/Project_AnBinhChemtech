@@ -30,8 +30,24 @@ export function QuotationListPage() {
   }
 
   useEffect(() => {
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false
+    api
+      .listQuotations({})
+      .then((data) => {
+        if (cancelled) return
+        setRows(data)
+        setError(null)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setError(err instanceof Error ? err.message : 'Load failed')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   function onFilter(e: FormEvent) {

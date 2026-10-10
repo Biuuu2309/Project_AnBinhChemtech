@@ -67,6 +67,7 @@ export const api = {
       items?: QuotationCreate['items']
       payment_terms?: string
       delivery_terms?: string
+      vat_percent?: number | null
       note?: string | null
     },
   ) =>

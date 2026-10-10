@@ -24,6 +24,7 @@ export type Quotation = {
   status: QuotationStatus
   payment_terms: string
   delivery_terms: string
+  vat_percent: number | null
   note: string | null
   output_path: string | null
   error_message: string | null
@@ -36,6 +37,7 @@ export type QuotationCreate = {
   items: Omit<QuotationItem, 'id'>[]
   payment_terms: string
   delivery_terms: string
+  vat_percent?: number | null
   note?: string
 }
 

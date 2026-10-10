@@ -76,9 +76,10 @@ class QuotationItemOut(QuotationItemIn):
 
 class QuotationCreate(BaseModel):
     customer_id: str = Field(min_length=1, max_length=32)
-    items: list[QuotationItemIn] = Field(min_length=1, max_length=50)
+    items: list[QuotationItemIn] = Field(min_length=1, max_length=3)
     payment_terms: str = Field(min_length=1, max_length=200)
     delivery_terms: str = Field(min_length=1, max_length=200)
+    vat_percent: float | None = Field(default=None, ge=0, le=100)
     note: str | None = Field(default=None, max_length=2000)
 
     @field_validator("customer_id", "payment_terms", "delivery_terms", mode="before")
@@ -95,9 +96,10 @@ class QuotationCreate(BaseModel):
 
 
 class QuotationUpdate(BaseModel):
-    items: list[QuotationItemIn] | None = Field(default=None, min_length=1, max_length=50)
+    items: list[QuotationItemIn] | None = Field(default=None, min_length=1, max_length=3)
     payment_terms: str | None = Field(default=None, min_length=1, max_length=200)
     delivery_terms: str | None = Field(default=None, min_length=1, max_length=200)
+    vat_percent: float | None = Field(default=None, ge=0, le=100)
     note: str | None = Field(default=None, max_length=2000)
 
     @field_validator("payment_terms", "delivery_terms", mode="before")
@@ -121,6 +123,7 @@ class QuotationOut(BaseModel):
     status: str
     payment_terms: str
     delivery_terms: str
+    vat_percent: float | None = None
     note: str | None
     output_path: str | None
     error_message: str | None
