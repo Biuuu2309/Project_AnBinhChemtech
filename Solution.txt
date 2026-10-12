@@ -1,0 +1,55 @@
+# 1. Kế hoạch giải pháp
+
+## 1.1. Tiếp nhận yêu cầu từ hệ thống nội bộ
+
+Khi người dùng tạo yêu cầu báo giá trên hệ thống nội bộ, hệ thống sẽ đóng gói các thông tin cần thiết thành một dữ liệu có cấu trúc, bao gồm:
+
+- Thông tin khách hàng.
+- Danh sách sản phẩm, quy cách, số lượng và đơn giá.
+- Các thông tin bổ sung phục vụ quá trình tạo báo giá.
+- Mã yêu cầu báo giá để theo dõi trạng thái xử lý.
+
+Trong kiến trúc triển khai thực tế, hệ thống Laravel gửi yêu cầu đến dịch vụ chạy trên thiết bị thực thi thông qua API nội bộ được bảo vệ và kết nối qua mạng Tailscale.
+
+Trong prototype, FastAPI đóng vai trò mô phỏng hệ thống tiếp nhận và quản lý yêu cầu; worker Python đảm nhiệm việc thực thi quy trình tạo báo giá.
+
+## 1.2. Chuyển thông tin đến AI Agent
+
+Sau khi tiếp nhận yêu cầu, hệ thống kiểm tra tính hợp lệ của dữ liệu, ghi nhận trạng thái và chuyển công việc cho worker xử lý.
+
+AI Agent được thiết kế như một thành phần xử lý trên thiết bị thực thi, có nhiệm vụ hỗ trợ diễn giải thông tin đầu vào, chuẩn hóa nội dung khi cần thiết và phối hợp với các công cụ xử lý tài liệu.
+
+Quy trình được chia thành các bước:
+
+1. Tiếp nhận dữ liệu báo giá và xác định mã yêu cầu.
+2. Kiểm tra các trường bắt buộc, kiểu dữ liệu và giới hạn số lượng sản phẩm.
+3. Chuẩn hóa các nội dung văn bản cần thiết thông qua module AI.
+4. Chuyển dữ liệu đã được kiểm tra sang bước ánh xạ và tạo tài liệu.
+
+Để bảo đảm tính chính xác, các thông tin thương mại như số lượng, đơn giá và dữ liệu khách hàng được kiểm soát bằng các quy tắc xác định. AI không được tự ý thay đổi các giá trị này.
+
+Trong phiên bản prototype, bước xử lý AI được thiết kế thông qua module riêng, hiện sử dụng cơ chế mô phỏng theo cấu hình mặc định. Việc tích hợp model AI thực tế là điểm mở rộng của kiến trúc.
+
+## 1.3. Phân tích mẫu PowerPoint và xác định vị trí cần điền
+
+Hệ thống sử dụng thư viện Python để đọc cấu trúc file PPTX, trích xuất thông tin về slide, shape, tên đối tượng và nội dung văn bản.
+
+Dựa trên cấu trúc template đã khảo sát, hệ thống xây dựng một bảng ánh xạ giữa trường dữ liệu báo giá và đối tượng tương ứng trên slide. Ví dụ:
+
+| Trường dữ liệu | Vị trí trên template |
+|---|---|
+| Tên khách hàng | Shape chứa thông tin khách hàng |
+| Tên sản phẩm | Các shape dành cho tên sản phẩm |
+| Đơn giá chưa VAT | Các shape dành cho đơn giá |
+| Quy cách | Các shape dành cho quy cách sản phẩm |
+| Ngày báo giá | Shape chứa ngày báo giá |
+
+Trong prototype hiện tại, các vị trí đã được xác định trước dựa trên cấu trúc của template cụ thể. Khi template thay đổi, cần kiểm tra lại cấu trúc và cập nhật bảng ánh xạ.
+
+Ở phiên bản mở rộng, có thể bổ sung Template Analyzer sử dụng AI để phân tích tên đối tượng, nội dung, vị trí và hình ảnh render của slide, từ đó đề xuất ánh xạ giữa các trường dữ liệu và shape. Kết quả đề xuất phải được kiểm tra trước khi sử dụng; AI không tự động ghi dữ liệu vào vị trí chưa xác định chắc chắn.
+
+## 1.4. Điền dữ liệu và xuất file báo giá
+
+Sau khi dữ liệu và bảng ánh xạ được xác nhận, worker sử dụng Python để điền thông tin vào các shape tương ứng trên mẫu PowerPoint có sẵn.
+
+Hệ thống giữ nguyên bố cục và các nội dung cố định của template, chỉ cập nhật những trường được cho phép. Các trường chưa có quy tắc nghiệp vụ rõ ràng, chẳng hạn cách tính VAT,
