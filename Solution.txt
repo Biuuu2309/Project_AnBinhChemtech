@@ -53,3 +53,100 @@ Trong prototype hiện tại, các vị trí đã được xác định trước
 Sau khi dữ liệu và bảng ánh xạ được xác nhận, worker sử dụng Python để điền thông tin vào các shape tương ứng trên mẫu PowerPoint có sẵn.
 
 Hệ thống giữ nguyên bố cục và các nội dung cố định của template, chỉ cập nhật những trường được cho phép. Các trường chưa có quy tắc nghiệp vụ rõ ràng, chẳng hạn cách tính VAT,
+
+# 4. Cách tiếp cận và xây dựng giải pháp
+
+## 4.1. Nguyên tắc thiết kế
+
+Giải pháp được xây dựng theo hướng tự động hóa quy trình báo giá, ưu tiên tính chính xác, khả năng kiểm soát dữ liệu, dễ bảo trì và có thể mở rộng khi tích hợp vào hệ thống nội bộ.
+
+Thay vì để AI tự xử lý toàn bộ quy trình, hệ thống phân tách nhiệm vụ giữa các thành phần:
+
+- **Backend:** tiếp nhận yêu cầu, kiểm tra dữ liệu, lưu trữ thông tin và quản lý trạng thái xử lý.
+- **Worker:** thực thi công việc tạo báo giá, điều phối các bước xử lý và ghi nhận lỗi.
+- **AI module:** hỗ trợ xử lý nội dung văn bản và cung cấp điểm tích hợp cho model AI.
+- **PPTX generator:** sử dụng các quy tắc ánh xạ xác định để điền dữ liệu vào mẫu PowerPoint.
+- **Validation:** kiểm tra dữ liệu đầu vào và kết quả xử lý trước khi cung cấp file.
+
+Cách tiếp cận này giúp tận dụng AI ở những bước cần khả năng xử lý ngôn ngữ, đồng thời giữ các thao tác ảnh hưởng đến dữ liệu thương mại trong một quy trình có thể kiểm tra và dự đoán được.
+
+## 4.2. Khảo sát mẫu PowerPoint và xây dựng cơ chế ánh xạ
+
+Trước khi phát triển chức năng tạo báo giá, tiến hành khảo sát template PowerPoint hiện có để xác định cấu trúc slide, các đối tượng chứa văn bản và vị trí tương ứng với từng trường dữ liệu.
+
+Sử dụng Python và thư viện `python-pptx` để đọc cấu trúc tài liệu, kiểm tra nội dung của các shape và xác định các vị trí cần cập nhật.
+
+Từ kết quả khảo sát, xây dựng bảng ánh xạ giữa dữ liệu đầu vào và các shape tương ứng trên template. Các vị trí này được cấu hình tập trung để thuận tiện kiểm tra và bảo trì.
+
+Trong phiên bản hiện tại, mapping được xác định trước dựa trên cấu trúc của template cụ thể. Khi mẫu báo giá thay đổi, cần kiểm tra lại mapping trước khi tiếp tục sử dụng. Việc sử dụng AI để tự phân tích template và đề xuất mapping được xem là hướng mở rộng, chưa phải chức năng đã hoàn thiện của prototype.
+
+## 4.3. Xây dựng quy trình tiếp nhận và xử lý yêu cầu
+
+Backend được xây dựng bằng FastAPI để cung cấp API phục vụ quản lý khách hàng, yêu cầu báo giá và trạng thái xử lý. Dữ liệu được lưu trữ bằng SQLite trong môi trường prototype.
+
+Quy trình xử lý gồm các bước:
+
+1. Tiếp nhận yêu cầu báo giá từ giao diện.
+2. Kiểm tra dữ liệu khách hàng, sản phẩm, số lượng, đơn giá và các trường liên quan.
+3. Lưu yêu cầu và tạo thông tin theo dõi quá trình xử lý.
+4. Chuyển công việc đến worker.
+5. Cập nhật trạng thái dựa trên kết quả thực thi.
+6. Cho phép xem lịch sử, thử lại khi phù hợp và tải file khi báo giá hoàn thành.
+
+Thiết kế có xét đến các tình huống như dữ liệu không hợp lệ, khách hàng không hoạt động, yêu cầu trùng lặp và lỗi trong quá trình tạo tài liệu.
+
+Trong kiến trúc triển khai thực tế, dịch vụ tiếp nhận này có thể được thay thế hoặc tích hợp với hệ thống Laravel của công ty. Kết nối đến thiết bị thực thi qua Tailscale là một phần cần triển khai và xác minh riêng trong môi trường thực tế.
+
+## 4.4. Xây dựng worker và tích hợp AI
+
+Worker Python đảm nhiệm việc thực thi quy trình tạo báo giá độc lập với giao diện người dùng. Việc tách worker giúp các tác vụ xử lý tài liệu có thể được theo dõi, kiểm soát lỗi và thử lại mà không cần thực hiện toàn bộ quy trình từ đầu.
+
+AI được thiết kế thành một module riêng nhằm giảm sự phụ thuộc giữa xử lý ngôn ngữ và các chức năng nghiệp vụ khác.
+
+Trong phiên bản hiện tại, module AI tập trung vào chuẩn hóa nội dung ghi chú. Quy trình gồm chuẩn hóa đầu vào, gọi thành phần xử lý AI, kiểm tra kết quả và chỉ cập nhật trường ghi chú được cho phép. Các trường thương mại quan trọng không được tự ý ghi đè bởi kết quả AI.
+
+Cấu trúc cũng cung cấp điểm tích hợp với Codex CLI thông qua `CodexRunner`. Tuy nhiên, cấu hình mặc định hiện sử dụng cơ chế mô phỏng; do đó, chưa xem việc tích hợp model AI thực tế là chức năng đã hoàn tất.
+
+## 4.5. Xây dựng chức năng tạo file PowerPoint
+
+Chức năng tạo báo giá được triển khai bằng Python với `python-pptx`, sử dụng template PowerPoint có sẵn làm cơ sở.
+
+Sau khi dữ liệu được kiểm tra và mapping được xác định, chương trình thực hiện:
+
+1. Mở template gốc.
+2. Tìm các shape theo mapping đã cấu hình.
+3. Điền thông tin khách hàng, sản phẩm, quy cách, đơn giá và ngày báo giá vào các vị trí tương ứng.
+4. Giữ nguyên các nội dung cố định và những trường chưa có quy tắc nghiệp vụ được xác nhận.
+5. Lưu thành file PPTX đầu ra riêng.
+6. Kiểm tra kết quả tạo file và cập nhật trạng thái xử lý.
+
+Giải pháp giới hạn tối đa ba sản phẩm theo cấu trúc template hiện tại. Các trường liên quan đến VAT được để trống khi chưa có quy tắc tính toán được xác nhận; mã báo giá có sẵn trên template được giữ nguyên thay vì tự suy diễn từ mã yêu cầu.
+
+Cách làm này ưu tiên tính chính xác và tránh việc tự động tạo ra thông tin thương mại chưa được xác nhận.
+
+## 4.6. Kiểm thử và đánh giá giải pháp
+
+Quá trình kiểm thử được thực hiện theo nhiều cấp độ:
+
+- **Backend:** kiểm tra API, validation và các quy tắc nghiệp vụ.
+- **Worker:** kiểm tra xử lý job, tạo tài liệu, xử lý lỗi, retry và kết quả AI mô phỏng.
+- **Frontend:** kiểm tra khả năng xây dựng giao diện và các luồng thao tác chính.
+- **End-to-end:** kiểm tra luồng từ tạo yêu cầu báo giá đến hoàn thành và tải file PPTX.
+
+Các tình huống quan trọng gồm yêu cầu hợp lệ, dữ liệu thiếu hoặc không hợp lệ, khách hàng không hoạt động, số lượng sản phẩm vượt giới hạn, yêu cầu trùng lặp và thử lại khi trạng thái không cho phép.
+
+Theo kết quả kiểm thử đã ghi nhận trong quá trình phát triển, backend có 4 bài kiểm thử đạt, worker có 16 bài kiểm thử đạt, frontend build và lint thành công, cùng với 11/11 kiểm tra E2E đạt.
+
+Các kết quả trên xác nhận các kiểm tra tự động đã đạt theo báo cáo. Việc kiểm tra trực quan file PowerPoint bằng PowerPoint hoặc LibreOffice vẫn cần được thực hiện để xác nhận đầy đủ bố cục và khả năng hiển thị thực tế.
+
+## 4.7. Hướng mở rộng
+
+Sau khi hoàn thiện prototype, giải pháp có thể được phát triển theo các hướng:
+
+- Tích hợp model AI thực tế để xử lý nội dung ngôn ngữ tự nhiên.
+- Phát triển Template Analyzer để phân tích template mới và đề xuất ánh xạ các trường dữ liệu.
+- Triển khai worker trên thiết bị thực thi riêng và thiết lập kết nối qua Tailscale.
+- Tích hợp với hệ thống Laravel và cơ sở dữ liệu thực tế theo giao thức được thống nhất.
+- Bổ sung xác thực, phân quyền, giám sát và các cơ chế vận hành an toàn cho môi trường production.
+
+Các hướng mở rộng này được tách biệt với phạm vi đã hoàn thành nhằm bảo đảm tài liệu phản ánh chính xác mức độ triển khai hiện tại.
