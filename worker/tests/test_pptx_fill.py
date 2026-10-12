@@ -14,6 +14,7 @@ from jobs.pptx_mapping import (
     SHAPE_PRODUCT_NAME,
     SHAPE_QUOTE_CODE,
     build_shape_writes,
+    format_quote_code,
     parse_pack_size_kg,
 )
 from jobs.pptx_template_service import fill_pptx_template, read_shape_texts
@@ -48,6 +49,15 @@ def test_parse_pack_size_and_default(caplog):
     with caplog.at_level("INFO"):
         assert parse_pack_size_kg("99.5%", quotation_id="Q", item_index=2) == "25"
     assert "specification_defaulted" in caplog.text
+
+
+def test_format_quote_code():
+    created = datetime(2026, 10, 12, tzinfo=timezone.utc)
+    assert format_quote_code("QT-2026-112", created) == "ABC-[]/QT/[2610]-[112]"
+    assert format_quote_code("QT-TEST-001", datetime(2026, 3, 15, tzinfo=timezone.utc)) == (
+        "ABC-[]/QT/[2603]-[001]"
+    )
+    assert format_quote_code("QT-VAT", created) == "ABC-[]/QT/[2610]-[01]"
 
 
 def test_reject_more_than_three_items():
@@ -86,10 +96,8 @@ def test_fill_one_item_clears_extra_rows_and_vat(tmp_path):
     assert texts[SHAPE_PRICE_EXCL_VAT[1]] == ""
     assert texts[SHAPE_PRICE_INCL_VAT[1]] == ""
     assert texts[SHAPE_DATE] == "Ngày 15 tháng 03 năm 2026"
-    # C-B: quote code unchanged (template may use non-ASCII hyphen)
-    original = read_shape_texts(TEMPLATE)
-    assert texts[SHAPE_QUOTE_CODE] == original[SHAPE_QUOTE_CODE]
-    assert "ABC-" in texts[SHAPE_QUOTE_CODE] and "/QT/" in texts[SHAPE_QUOTE_CODE]
+    # QT-TEST-001 @ 2026-03-15 → ABC-[]/QT/[2603]-[001]
+    assert texts[SHAPE_QUOTE_CODE] == "ABC-[]/QT/[2603]-[001]"
     assert "BẢNG BÁO GIÁ" in texts[18]
     assert "should-not-appear" not in "".join(texts.values())
     assert "secret-note" not in "".join(texts.values())

@@ -15,7 +15,7 @@ Nguồn xác minh template: `docs/01_Bao_Gia_An_Binh_Chemtech.V2.pptx` (1 slide,
 | 2 | Tối đa **3** sản phẩm; nếu `len(items) > 3` → **fail job** với message rõ; **không** cắt danh sách. |
 | 3 | `unit_price` = giá **chưa VAT**. Không tự nhân `× 1.08`. Không ghi giá chưa VAT vào cột mang nhãn gồm VAT. |
 | 4 | Quy cách: parse số kg/bao từ `specification` nếu hợp lệ; không parse được → `"25"` + **log** default. |
-| 5 | Nguồn mã = `quotation.id` (tương lai). **Tạm C-B:** không ghi đè shape 46 cho đến khi có quy tắc mapping chính thức. |
+| 5 | Mã shape 46 = `ABC-[]/QT/[yymm]-[seq]` (`yymm` từ `created_at`, `seq` từ đuôi `quotation.id`; `[]` sau ABC để trống). |
 | 6 | Không đưa `payment_terms` / `delivery_terms` / `note` lên slide V2; giữ nguyên trong DB/API/UI. |
 | 7 | **VAT = V-A:** để trống shape 30/34/38 (xóa sample, không ghi số). |
 | 8 | **Ngày:** điền ngày/tháng từ `created_at`; **giữ literal `năm 2026`** trên template. |
@@ -42,7 +42,7 @@ Nguồn xác minh template: `docs/01_Bao_Gia_An_Binh_Chemtech.V2.pptx` (1 slide,
 | **50** | Quy cách dòng 2 | parse `items[1].specification` else `"25"` | Chỉ khi có item dòng 2; nếu không có item → blank (không ép 25 cho dòng trống). |
 | **51** | Quy cách dòng 3 | parse `items[2].specification` else `"25"` | Như dòng 2. |
 | **42** | `Ngày […] tháng […] năm 2026` | `quotation.created_at` → day, month | Điền ngày/tháng; **giữ** `năm 2026` literal. |
-| **46** | `ABC-[]/QT/[2606]-[01]` | `quotation.id` (chưa dùng) | **C-B:** không ghi đè shape này. |
+| **46** | `ABC-[]/QT/[2606]-[01]` | `ABC-[]/QT/[yymm]-[seq]` | Điền từ ngày tạo + đuôi `quotation.id`. |
 
 ### 2.2. Cấu trúc ô mã (shape 46) — đã xác minh XML
 
@@ -150,9 +150,12 @@ Vẫn chờ rule/thuế suất hoặc field API trước khi điền số thật
 
 ---
 
-### 5.2. Format mã báo giá — **Đã chốt C-B**
+### 5.2. Format mã báo giá — **Đã chốt**
 
-Shape 46 **không bị ghi đè**. Sample `ABC-[]/QT/[2606]-[01]` còn trên file đến khi có quy tắc map từ `quotation.id`.
+Shape 46 điền `ABC-[]/QT/[yymm]-[seq]`:
+- `ABC-` + `[]` (để trống) + `/QT/` cố định
+- `[yymm]` từ `created_at` (vd. tháng 10/2026 → `2610`)
+- `[seq]` từ phần số cuối của `quotation.id` (vd. `QT-2026-112` → `112`; không có số → `01`)
 
 ---
 
@@ -200,7 +203,7 @@ Xác nhận nếu cần `name` hoặc `"{company} ({name})"`.
 | Max 3 items fail | **Implemented** |
 | Quy cách parse + default 25 | **Implemented** |
 | VAT = V-A (trống 30/34/38) | **Implemented** |
-| CODE = C-B (không đụng 46) | **Implemented** |
+| CODE = `ABC-[]/QT/[yymm]-[seq]` trên shape 46 | **Implemented** |
 | Ngày/tháng + năm 2026 | **Implemented** |
 | Backend allowlist `.pptx` | **Implemented** (hook tối thiểu) |
 | FE label Download (.pptx) | **Task 3** |

@@ -17,7 +17,7 @@ Kế hoạch ánh xạ PPTX: [`docs/pptx-v2-integration-plan.md`](docs/pptx-v2-i
 | Worker poll job, điền PPTX V2 theo shape ID | Mac mini / Tailscale thật |
 | Download PPTX an toàn (allowlist thư mục) | JWT/RBAC, Postgres |
 | MockAI chuẩn hóa **note** (optional; note không lên slide V2) | Codex CLI thật hoàn tất note |
-| Idempotency-Key trên create; `% VAT` tuỳ chọn → giá gồm VAT trên PPTX | Map mã `ABC-…/QT/…` tự động |
+| Idempotency-Key; `% VAT` → giá gồm VAT; mã `ABC-[]/QT/[yymm]-[seq]` | `[]` sau ABC (mã KH nội bộ) chưa map |
 
 ---
 
@@ -174,7 +174,7 @@ npm run build
 | 30/34/38 | `unit_price × (1 + vat_percent/100)` nếu có `% VAT`; không thì trống |
 | 49/50/51 | Quy cách parse từ `specification`, mặc định `25` |
 | 42 | Ngày/tháng từ `created_at`, giữ **năm 2026** |
-| 46 | **Không ghi** (C-B — giữ sample template) |
+| 46 | `ABC-[]/QT/[yymm]-[seq]` (`yymm` từ ngày tạo, `seq` từ đuôi `quotation.id`) |
 
 Không đưa `payment_terms` / `delivery_terms` / `note` lên slide (giữ trong DB/UI).
 
@@ -198,7 +198,7 @@ Không đưa `payment_terms` / `delivery_terms` / `note` lên slide (giữ trong
 | MockAI note | **Implemented** (note không lên slide) |
 | Codex CLI | **Mock/stub** boundary |
 | Laravel / Postgres / Tailscale / Mac mini | **Not integrated** — mô tả trong đề bài công ty |
-| Mã `ABC-…/QT/…` | **Chưa** (C-B giữ sample trên template) |
+| Mã `ABC-[]/QT/[yymm]-[seq]` | **Có** — điền shape 46; `[]` sau ABC để trống |
 | VAT gồm thuế | **Có** — nhập `vat_percent` trên báo giá |
 | JWT / RBAC | **Out of scope** |
 | Auto-recovery job kẹt PROCESSING | **Chưa** |
@@ -209,7 +209,7 @@ Không đưa `payment_terms` / `delivery_terms` / `note` lên slide (giữ trong
 
 - Internal job API **không auth** (chỉ local demo).
 - Worker chết giữa chừng → có thể kẹt `PROCESSING`.
-- Cột giá gồm VAT: điền khi có `% VAT`; shape mã báo giá vẫn sample (C-B).
+- Cột giá gồm VAT: điền khi có `% VAT`; mã báo giá shape 46 theo `ABC-[]/QT/[yymm]-[seq]`.
 - Production: deploy worker trên thiết bị thực thi (Tailscale), auth nội bộ, Postgres, rule VAT/mã, Codex thật nếu cần.
 
 ---

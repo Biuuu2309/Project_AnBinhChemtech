@@ -19,11 +19,12 @@ SHAPE_PRICE_EXCL_VAT = (29, 33, 37)
 SHAPE_PRICE_INCL_VAT = (30, 34, 38)  # filled when vat_percent > 0; else empty
 SHAPE_PACK_SIZE = (49, 50, 51)
 SHAPE_DATE = 42
-SHAPE_QUOTE_CODE = 46  # C-B: do not overwrite
+SHAPE_QUOTE_CODE = 46  # ABC-[]/QT/[yymm]-[seq]
 
 REQUIRED_SHAPES: tuple[int, ...] = (
     SHAPE_CUSTOMER,
     SHAPE_DATE,
+    SHAPE_QUOTE_CODE,
     *SHAPE_PRODUCT_NAME,
     *SHAPE_PRICE_EXCL_VAT,
     *SHAPE_PRICE_INCL_VAT,
@@ -111,6 +112,22 @@ def _parse_created_at(job: dict[str, Any]) -> datetime:
     return datetime.now().astimezone()
 
 
+_SEQ_RE = re.compile(r"(\d+)\s*$")
+
+
+def format_quote_code(quotation_id: str, created: datetime) -> str:
+    """ABC-[]/QT/[yymm]-[seq] — [] after ABC left empty; seq from id suffix."""
+    yymm = f"{created.year % 100:02d}{created.month:02d}"
+    match = _SEQ_RE.search((quotation_id or "").strip())
+    seq = match.group(1) if match else "01"
+    if not match:
+        logger.info(
+            "quote_code_seq_defaulted quotation_id=%r default=01",
+            quotation_id,
+        )
+    return f"ABC-[]/QT/[{yymm}]-[{seq}]"
+
+
 def build_shape_writes(job: dict[str, Any], customer: dict[str, Any]) -> list[ShapeWrite]:
     items = list(job.get("items") or [])
     if len(items) > MAX_PRODUCT_ROWS:
@@ -129,6 +146,7 @@ def build_shape_writes(job: dict[str, Any], customer: dict[str, Any]) -> list[Sh
             SHAPE_DATE,
             f"Ngày {created.day:02d} tháng {created.month:02d} năm 2026",
         ),
+        ShapeWrite(SHAPE_QUOTE_CODE, format_quote_code(quotation_id, created)),
     ]
 
     for row in range(MAX_PRODUCT_ROWS):
@@ -160,5 +178,4 @@ def build_shape_writes(job: dict[str, Any], customer: dict[str, Any]) -> list[Sh
             )
         )
 
-    # C-B: SHAPE_QUOTE_CODE intentionally omitted
     return writes
